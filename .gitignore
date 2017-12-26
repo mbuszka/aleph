@@ -1,3 +1,4 @@
 .stack-work/
-aleph.cabal
 *~
+cabal-helper*/*
+aleph.cabal
