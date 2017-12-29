@@ -20,10 +20,10 @@ spec = Par.LanguageDef
   , Par.commentEnd      = "-}"
   , Par.commentLine     = "--"
   , Par.nestedComments  = True
-  , Par.identStart      = Par.letter <|> Par.char '_'
-  , Par.identLetter     = Par.alphaNum <|> Par.oneOf "_"
-  , Par.opStart         = Par.oneOf ":=(-<>|"
-  , Par.opLetter        = Par.oneOf ":=>()-<>|"
+  , Par.identStart      = Par.letter <|> Par.char '_' <|> Par.char '\''
+  , Par.identLetter     = Par.alphaNum <|> Par.oneOf "_" <|> Par.char '\''
+  , Par.opStart         = Par.oneOf ":=(-<>|,"
+  , Par.opLetter        = Par.oneOf ":=>()-<>|,"
   , Par.reservedNames   = reservedNames
   , Par.reservedOpNames = reservedOpNames
   , Par.caseSensitive   = True
@@ -41,6 +41,9 @@ reservedNames =
   , "with"
   , "Int"
   , "Bool"
+  , "λ"
+  , "Λ"
+  , "∀"
   ]
 
 reservedOpNames :: [String]
@@ -52,7 +55,11 @@ reservedOpNames =
   , "<"
   , ">"
   , "|"
+  , "."
   ]
+
+whitespace :: (Monad m) => Lexer st m ()
+whitespace = Par.whiteSpace lexer
 
 reservedOp :: (Monad m) => Identifier -> Lexer st m ()
 reservedOp = Par.reservedOp lexer
@@ -66,15 +73,15 @@ identifier = Par.identifier lexer
 lexeme :: (Monad m) => Lexer st m a -> Lexer st m a
 lexeme = Par.lexeme lexer
 
-typeIdent :: (Monad m) => Lexer st m Identifier
-typeIdent = lexeme $ do
-  c <- Par.oneOf ['A' .. 'Z']
+varIdent :: (Monad m) => Lexer st m Identifier
+varIdent = lexeme $ do
+  c <- Par.oneOf $ '_':['a' .. 'z']
   rest <- Par.many (Par.identLetter spec)
   return $ c:rest
 
-typeVar :: (Monad m) => Lexer st m Identifier
-typeVar = lexeme $ do
-  c <- Par.oneOf ['a' .. 'z' ]
+typeIdent :: (Monad m) => Lexer st m Identifier
+typeIdent = lexeme $ do
+  c <- Par.oneOf $ '\'' : ['A' .. 'Z']
   rest <- Par.many (Par.identLetter spec)
   return $ c:rest
 
@@ -89,3 +96,6 @@ inParens = Par.parens lexer
 
 inAngles :: (Monad m) => Lexer st m a -> Lexer st m a
 inAngles = Par.angles lexer
+
+inBrackets :: (Monad m) => Lexer st m a -> Lexer st m a
+inBrackets = Par.brackets lexer
