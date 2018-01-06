@@ -23,6 +23,7 @@ dependencies:
 - mtl
 - syb
 - strict
+- lens
 
 library:
   source-dirs: src

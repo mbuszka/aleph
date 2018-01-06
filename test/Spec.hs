@@ -1,23 +1,18 @@
-import System.IO
+import           System.IO
 import qualified System.IO.Strict as S
+import qualified Data.Map as M
+
 import Control.Monad
 
-import Parser
-import Renamer
-import Common
-import Syntax
+import Data.Bifunctor
 
-checkOne num = 
-  withFile ("/home/mbuszka/university/aleph/test/test-" ++ show num ++ ".al") ReadMode $
-    \handle -> do
-      hSetEncoding handle utf8
-      t <- S.hGetContents handle
-      return $ do
-        ts <- parse program t
-        renameAll ts
+import Parser
+import Check
+import Type
 
 main :: IO ()
-main = do
-  mapM_ (checkOne >=> print) [1 .. 2]
-  return ()
-
+main = case parse term "(fn x -> fn y -> x) true" of
+    Left err -> print err
+    Right t -> do
+      let (ty, cs) = runCheck (process t)
+      print $ printType <$> ty -- map (bimap printType printType) cs

@@ -1,143 +1,66 @@
 module Parser where
 
-import qualified Text.Parsec as Par
-import qualified Data.Set    as S
+import qualified Text.Parsec          as P
+import qualified Text.Parsec.Token    as P
+import qualified Text.Parsec.Language as P
 
 import Control.Applicative
-import Data.Functor.Identity
-import Data.Bifunctor
-import Data.List(sort)
 
 import Syntax
+import Type
 import Lexer
-import Common
 
-type ParseState = ()
-type ParseMonad = Identity
-type Parser a = Par.ParsecT String ParseState ParseMonad a
+parse :: Parser a -> String -> Either P.ParseError a
+parse p = P.parse p ""
 
-parse :: Parser a -> String -> Either Error a
-parse p = first ParseError . Par.runParser p () ""
+top :: Parser Top
+top =  TLet <$> (reserved "let" >> binding) <*> (reservedOp "=" >> term)
+   <|> TRun <$> (reserved "run" >> term)
 
-program :: Parser [TopLevel]
-program = whitespace >> many topLevel
+binding :: Parser Binding
+binding = Bind <$> var <*> return Nothing -- optional tyTerm
 
-boolean :: Parser Bool
-boolean = (Par.string "true" >> return True) <|> (Par.string "false" >> return False)
+term :: Parser Term
+term =  Let <$> (reserved "let" >> binding) <*> (reservedOp "=" >> term) <*> term
+    <|> app
+    <|> aTerm
 
-literal :: Parser Literal
-literal =  (B <$> boolean) 
-       <|> (I . fromIntegral <$> integer)
-       <|> (S <$> stringLit)
-       <|> (reservedOp "()" >> (return U))
+app :: Parser Term
+app = do
+  ts <- P.many1 aTerm
+  return $ foldl1 App ts
 
--- tyLambda :: Parser Value
--- tyLambda = do
---   reserved "Fun" <|> reserved "Λ"
---   id <- identifier
---   reservedOp "."
---   ex <- expression
---   return $ TyLambda id ex
+aTerm :: Parser Term
+aTerm =  parens term
+     <|> Abs <$> (reserved "fn" >> binding) <*> (reservedOp "->" >> term)
+     <|> Lit <$> litVal
+     <|> Var <$> var
 
-varBinding :: Parser VarBinding
-varBinding = do
-  id <- varIdent
-  ty <- optional $ do
-    reservedOp ":"
-    typeTerm
-  return $ VBind id ty
+litVal :: Parser Val
+litVal =  VInt <$> number
+      <|> VBool <$> bool
+      <|> (reserved "()" >> return VUnit)
+      where
+        bool =  (reserved "true" >> return True)
+            <|> (reserved "false" >> return False)
 
-typeBinding :: Parser TypeBinding
-typeBinding = do
-  id <- typeIdent
-  return $ TBind id KRow
+-- tyTerm :: Parser Type
+-- tyTerm =  (P.try $ TyArr <$> atyTerm <*> (reservedOp "->" >> row) <*> tyTerm)
+--       <|> atyTerm
 
-lambda :: Parser Value
-lambda = do
-  reserved "fun" <|> reserved "λ"
-  b <- (BVar <$> Par.try varBinding <|> BTyp <$> typeBinding) Par.<?> "Expected variable or type binding"
-  reservedOp "."
-  ex <- expression
-  return $ Lambda b ex 
+-- atyTerm :: Parser Type
+-- atyTerm =  TyLit <$> typeLit
+--        <|> parens tyTerm
 
-value :: Parser Value
-value = lambda <|> (Lit <$> literal) <|> (Variable <$> identifier)
-
-letexp :: Parser Expression
-letexp = do
-  reserved "let"
-  binder <- varBinding
-  reservedOp "="
-  bound <- expression
-  reserved "in"
-  body <- expression
-  return $ LetExp binder bound body
-
-term :: Parser Expression
-term =  (Val <$> value)
-    <|> (reserved "lift" >> expression)
-    <|> (inParens expression)
-    <|> RowExp <$> rowType
-
-application :: Parser Expression
-application = do
-  e1 <- term
-  e2 <- term
-  return $ App e1 e2
-
-expression :: Parser Expression
-expression = letexp <|> term <|> application
-
-atomType :: Parser Type
-atomType =  (reserved "()" >> return TyUnit)
-        <|> (reserved "Int" >> return TyInt)
-        <|> (reserved "Bool" >> return TyBool)
-        <|> (inParens typeTerm)
-
-arrowType :: Parser Type
-arrowType = do
-  l <- atomType
-  reservedOp "->"
-  row <- rowType
-  r <- typeTerm
-  return $ TyArrow l row r
-
-forallType :: Parser Type
-forallType = do
-  reserved "forall"
-  b <- typeBinding
-  reserved "."
-  t <- typeTerm
-  return $ TyForall b t
-
-typeTerm :: Parser Type
-typeTerm = forallType <|> (Par.try arrowType) <|> atomType
-
-rowType :: Parser Row
-rowType = inAngles rowTerm <|> (ROpen S.empty <$> typeIdent)
-
-rowTerm :: Parser Row
-rowTerm = do
-  lbls <- Par.sepBy identifier (reservedOp ",")
-  var <- optional $ do
-    reservedOp "|"
-    typeIdent
-  case var of
-    Just v -> return $ ROpen (sort lbls) v
-    Nothing -> return $ RClosed (sort lbls)
-
-definition :: Parser TopLevel
-definition = do
-  reserved "def"
-  b <- varBinding
-  reservedOp "="
-  val <- value
-  return $ Definition b val
-
-runnable :: Parser TopLevel
-runnable = do
-  reserved "run"
-  Runnable <$> expression
-
-topLevel :: Parser TopLevel
-topLevel = definition <|> runnable
+-- row :: Parser Row
+-- row =  ROpen <$> typeVar
+--    <|> squares fullRow
+--     where
+--       fullRow = do
+--         ls <- many typeLit
+--         tlm <- optional (reservedOp "|" >> typeVar)
+--         let 
+--           tl = case tlm of 
+--             Just v -> ROpen v
+--             Nothing -> RNil
+--         return $ foldr RCons tl ls

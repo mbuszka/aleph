@@ -1,101 +1,89 @@
-module Lexer where
+module Lexer
+  ( Parser
+  , lexeme
+  , number
+  , string
+  , typeVar
+  , typeLit
+  , var
+  , parens
+  , squares
+  , reserved
+  , reservedOp
+  ) where
 
-import qualified Text.Parsec       as Par
-import qualified Text.Parsec.Token as Par
-
-import Control.Applicative
+import qualified Text.Parsec          as P
+import qualified Text.Parsec.Token    as P
+import qualified Text.Parsec.Language as P
+import           Data.Set(Set, member, fromList)
 
 import Syntax
+import Type
 
-type LexerDef st m = Par.GenTokenParser String st m
-type Spec  st m = Par.GenLanguageDef String st m
-type Lexer st m a = Par.ParsecT String st m a
+type Parser a = P.Parsec String () a
 
-lexer :: (Monad m) => LexerDef st m
-lexer = Par.makeTokenParser spec
-
-spec :: (Monad m) => Spec st m
-spec = Par.LanguageDef
-  { Par.commentStart    = "{-"
-  , Par.commentEnd      = "-}"
-  , Par.commentLine     = "--"
-  , Par.nestedComments  = True
-  , Par.identStart      = Par.letter <|> Par.char '_' <|> Par.char '\''
-  , Par.identLetter     = Par.alphaNum <|> Par.oneOf "_" <|> Par.char '\''
-  , Par.opStart         = Par.oneOf ":=(-<>|,"
-  , Par.opLetter        = Par.oneOf ":=>()-<>|,"
-  , Par.reservedNames   = reservedNames
-  , Par.reservedOpNames = reservedOpNames
-  , Par.caseSensitive   = True
+spec :: P.LanguageDef ()
+spec = P.haskellStyle 
+  { P.reservedOpNames = 
+    [ ","
+    , "."
+    , ":"
+    , "="
+    , "."
+    , "->"
+    ]
   }
 
-reservedNames :: [String]
-reservedNames =
-  [ "def"
-  , "fun"
-  , "let"
-  , "true"
-  , "false"
-  , "lift"
+resNames :: Set Identifier
+resNames = fromList
+  [ "let"
+  , "rec"
+  , "fn"
+  , "fa"
+  , "run"
   , "handle"
   , "with"
-  , "Int"
-  , "Bool"
-  , "λ"
-  , "Λ"
-  , "∀"
-  ]
-
-reservedOpNames :: [String]
-reservedOpNames =
-  [ ":"
-  , "=>"
   , "()"
-  , "->"
-  , "<"
-  , ">"
-  , "|"
-  , "."
   ]
 
-whitespace :: (Monad m) => Lexer st m ()
-whitespace = Par.whiteSpace lexer
+resOps :: Set Identifier
+resOps = fromList $ P.reservedOpNames spec
+  
+lexer :: P.TokenParser ()
+lexer = P.makeTokenParser spec
 
-reservedOp :: (Monad m) => Identifier -> Lexer st m ()
-reservedOp = Par.reservedOp lexer
+letter :: Parser Char
+letter = P.identLetter spec
 
-integer :: (Monad m) => Lexer st m Integer
-integer = Par.integer lexer
+number :: Parser Integer
+number = P.integer lexer
 
-identifier :: (Monad m) => Lexer st m Identifier
-identifier = Par.identifier lexer
+lexeme :: Parser a -> Parser a
+lexeme = P.lexeme lexer
 
-lexeme :: (Monad m) => Lexer st m a -> Lexer st m a
-lexeme = Par.lexeme lexer
+typeLit :: Parser Identifier
+typeLit = lexeme $ (:) <$> P.upper <*> P.many letter
 
-varIdent :: (Monad m) => Lexer st m Identifier
-varIdent = lexeme $ do
-  c <- Par.oneOf $ '_':['a' .. 'z']
-  rest <- Par.many (Par.identLetter spec)
-  return $ c:rest
+typeVar :: Parser TVar
+typeVar = TV <$> lexeme ((:) <$> P.char '\'' <*> P.many letter)
 
-typeIdent :: (Monad m) => Lexer st m Identifier
-typeIdent = lexeme $ do
-  c <- Par.oneOf $ '\'' : ['A' .. 'Z']
-  rest <- Par.many (Par.identLetter spec)
-  return $ c:rest
+var :: Parser Var
+var = V <$> lexeme (do
+  id <- (:) <$> P.lower <*> P.many letter
+  if id `member` resNames
+    then fail (id ++ " is a reserved name")
+    else return id)
 
-stringLit :: (Monad m) => Lexer st m String
-stringLit = Par.stringLiteral lexer
+reserved :: String -> Parser ()
+reserved = P.reserved lexer
 
-reserved :: (Monad m) => Identifier -> Lexer st m ()
-reserved = Par.reserved lexer
+reservedOp :: String -> Parser ()
+reservedOp = P.reservedOp lexer
 
-inParens :: (Monad m) => Lexer st m a -> Lexer st m a
-inParens = Par.parens lexer
+parens :: Parser a -> Parser a
+parens = P.parens lexer
 
-inAngles :: (Monad m) => Lexer st m a -> Lexer st m a
-inAngles = Par.angles lexer
+squares = P.squares lexer
 
-inBrackets :: (Monad m) => Lexer st m a -> Lexer st m a
-inBrackets = Par.brackets lexer
+string :: Parser String
+string = P.stringLiteral lexer
