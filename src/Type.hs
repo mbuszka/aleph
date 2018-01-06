@@ -18,9 +18,14 @@ data Kind = KRow | KType
 data Scheme = Scheme [TVar] Type
   deriving (Show)
 
-printType :: Type -> String
-printType (TyLit s) = s
-printType (TyArr a r b) = printType a ++ " -> " ++ printType r ++ " (" ++ printType b ++ ")"
-printType (TyVar (TV v)) = v
-printType (TyRow ls (Just (TV v))) = init (show ls) ++ "| " ++ v ++ "]"
-printType (TyRow ls Nothing) = show ls
+inParens s = "(" ++ s ++ ")"
+
+printType = printTypeP False
+
+printTypeP :: Bool -> Type -> String
+printTypeP b (TyLit s) = s
+printTypeP f (TyArr a r b) = 
+  (if f then inParens else id) $ printTypeP True a ++ " -> " ++ printTypeP False r ++ " " ++ printTypeP False b
+printTypeP b (TyVar (TV v)) = v
+printTypeP b (TyRow ls (Just (TV v))) = init (show ls) ++ "| " ++ v ++ "]"
+printTypeP b (TyRow ls Nothing) = show ls
