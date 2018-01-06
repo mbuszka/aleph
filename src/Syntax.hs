@@ -24,6 +24,10 @@ data Term
   | Abs Binding Term
   | Lit Val
   | Var Var
+  | Handler Var Var Var Term
+  | Ret Var Term
+  | Handle Term [Term]
+  | Lift String Term
   deriving (Show)
 
 data Val

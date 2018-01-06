@@ -40,6 +40,7 @@ resNames = fromList
   , "rec"
   , "fn"
   , "fa"
+  , "in"
   , "run"
   , "handle"
   , "with"

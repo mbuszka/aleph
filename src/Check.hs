@@ -36,8 +36,18 @@ type Constraints = [Constraint]
 
 type Check a = ExceptT Error (RWS Environment Constraints State) a
 
+effects :: Map Var Scheme
+effects = M.fromList
+  [ (V "put",
+      Scheme [ TV "'a" ] 
+        (TyArr (TyLit "Int") (TyRow [ "State"] (Just (TV "'a"))) (TyLit "()")))
+  , (V "print",
+      Scheme [ TV "'a" ]
+        (TyArr (TyLit "Int") (TyRow [ "IO"] (Just (TV "'a"))) (TyLit "()")))
+  ]
+
 initState = State 0 M.empty
-initEnv = Env M.empty
+initEnv = Env effects
 
 runCheck :: Check a -> (Either Error a, Constraints)
 runCheck c = evalRWS (runExceptT c) initEnv initState
@@ -96,7 +106,18 @@ infer (App t1 t2) = do
   constr e1 e2
   constr tr e1
   return (tv, tr)
--- infer (Let (Bind v _) body exp) = return 
+infer (Let (Bind v _) body exp) = do
+  ((ty1, e1), cs) <- listen $ infer body
+  s <- gets _sSubst
+  s' <- solve s cs
+  modify $ sSubst .~ s'
+  constr e1 (TyRow [] Nothing)
+  env <- ask
+  let s = generalize env ty1
+  inEnv v s $ infer exp
+
+
+
 
 generalize :: Environment -> Type -> Scheme
 generalize env ty = Scheme (S.toList vars) ty

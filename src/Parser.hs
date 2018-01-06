@@ -21,9 +21,18 @@ binding :: Parser Binding
 binding = Bind <$> var <*> return Nothing -- optional tyTerm
 
 term :: Parser Term
-term =  Let <$> (reserved "let" >> binding) <*> (reservedOp "=" >> term) <*> term
+term =  Let <$> (reserved "let" >> binding) <*> (reservedOp "=" >> term) <*> (reserved "in" >> term)
+    <|> Handle <$> (reserved "handle" >> term) <*> (reserved "with" >> handlers)
+    <|> Lift <$> (reserved "lift" >> typeLit) <*> aTerm
     <|> app
     <|> aTerm
+    where
+      handlers = many (handler <|> ret)
+      handler = Handler <$> var 
+                        <*> var 
+                        <*> (reservedOp "," >> var)
+                        <*> (reservedOp "->" >> term)
+      ret = Ret <$> (reserved "return" >> var) <*> (reservedOp "->" >> term)
 
 app :: Parser Term
 app = do
