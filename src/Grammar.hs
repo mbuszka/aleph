@@ -13,7 +13,10 @@ module Grammar
   , Typ(..)
   , Row(..)
   , Parse(..)
+  , TVar(..)
+  , Ident(..)
   , pShow
+  , typ
   ) where
 
 import Control.Monad.Except
@@ -36,6 +39,7 @@ terminator Top "";
 
 token TVar ('\'' (letter | digit)* );
 
+
 App.       Term1 ::= Term1 Term2;
 Let.       Term  ::= "let" Ident "=" Term "in" Term;
 Abs.       Term  ::= "fn" Ident "->" Term ;
@@ -55,13 +59,13 @@ VUnit.     Val ::= "()";
 TyLit.     Typ1 ::= Ident;
 TyArr.     Typ  ::= Typ1 "->" Typ2 Typ;
 TyVar.     Typ2 ::= TVar;
-TyRow.     Typ2 ::= "<" [Typ1] Row;
+TyRow.     Typ2 ::= "[" [Ident] Row;
 coercions  Typ 2;
 
-separator  Typ1 ",";
+separator  Ident ",";
 
-Open.      Row  ::= "|" TVar ">";
-Closed.    Row  ::= ">";
+Open.      Row  ::= "|" TVar "]";
+Closed.    Row  ::= "]";
 -- coercions  Row 1;
 
 |]

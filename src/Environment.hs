@@ -11,16 +11,18 @@ import qualified Data.Map as M
 import           Data.Map (Map)
 
 import Error
-import Syntax
-import Type
+import Grammar
+
+data Scheme = Scheme [TVar] Typ
+  deriving Show
 
 data Environment = Env
-  { _eTypeContext :: Map Var Scheme
+  { _eTypeContext :: Map Ident Scheme
   } deriving (Show)
 
 makeLenses ''Environment
 
-lookup :: (MonadReader Environment m, MonadError Error m) => Var -> m Scheme
+lookup :: (MonadReader Environment m, MonadError Error m) => Ident -> m Scheme
 lookup v = do
   ms <- asks (\env -> env ^. eTypeContext . to (M.lookup v))
   case ms of
@@ -28,5 +30,5 @@ lookup v = do
     Nothing -> throwError $ UnboundVariable (show v)
 
 
-inEnv :: (MonadReader Environment m) => Var -> Scheme -> m a -> m a
+inEnv :: (MonadReader Environment m) => Ident -> Scheme -> m a -> m a
 inEnv v s = local (eTypeContext %~ M.insert v s)

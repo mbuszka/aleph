@@ -14,10 +14,9 @@ import           Data.Set (Set)
 
 import Environment
 import Error
-import Syntax
-import Type
+import Grammar
 
-type Subst = Map TVar Type
+type Subst = Map TVar Typ
 
 class Substitute a where
   apply :: (MonadError Error m) => Subst -> a -> m a
@@ -28,14 +27,14 @@ class FreeVars a where
 compose :: (MonadError Error m) => Subst -> Subst -> m Subst
 compose a b = M.union a <$> apply a b
 
-instance Substitute Type where
+instance Substitute Typ where
   apply s (TyArr t1 r t2)     = 
     TyArr <$> (apply s t1) <*> (apply s r) <*> (apply s t2)
   apply s v@(TyVar tv)        = return $ M.findWithDefault v tv s
-  apply s r@(TyRow _ Nothing) = return r
-  apply s r@(TyRow ls (Just v)) = case M.lookup v s of
+  apply s r@(TyRow _ Closed) = return r
+  apply s r@(TyRow ls (Open v)) = case M.lookup v s of
     Nothing -> return r
-    Just (TyVar v')     -> return $ TyRow ls (Just v')
+    Just (TyVar v')     -> return $ TyRow ls (Open v')
     Just (TyRow ls' v') -> return $ TyRow (ls' ++ ls) v'
     Just t              ->
       throw $ KindError ("tried to substitute " ++ show t ++ "into row")
@@ -44,9 +43,9 @@ instance Substitute Type where
 instance (Substitute a, Traversable f) => Substitute (f a) where
   apply s = mapM (apply s)
 
-instance FreeVars Type where
+instance FreeVars Typ where
   ftv (TyArr t1 r t2)    = ftv t1 `S.union` ftv r `S.union` ftv t2
-  ftv (TyRow _ (Just v)) = S.singleton v
+  ftv (TyRow _ (Open v)) = S.singleton v
   ftv _                  = S.empty
   
 instance FreeVars Scheme where

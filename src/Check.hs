@@ -1,5 +1,8 @@
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE
+    FlexibleContexts
+  , TemplateHaskell
+  , QuasiQuotes
+#-}
 
 module Check where
 
@@ -22,8 +25,7 @@ import Prelude hiding (lookup)
 import Environment
 import Error
 import Subst
-import Syntax
-import Type
+import Grammar
 
 data State = State
   { _sNextVar :: Int
@@ -32,18 +34,15 @@ data State = State
 
 makeLenses ''State
 
+type Constraint = (Typ, Typ)
 type Constraints = [Constraint]
 
 type Check a = ExceptT Error (RWS Environment Constraints State) a
 
-effects :: Map Var Scheme
+effects :: Map Ident Scheme
 effects = M.fromList
-  [ (V "put",
-      Scheme [ TV "'a" ] 
-        (TyArr (TyLit "Int") (TyRow [ "State"] (Just (TV "'a"))) (TyLit "()")))
-  , (V "print",
-      Scheme [ TV "'a" ]
-        (TyArr (TyLit "Int") (TyRow [ "IO"] (Just (TV "'a"))) (TyLit "()")))
+  [ (Ident "put",   Scheme [TVar "'a"] [typ| Int -> [ST | 'a] Unit |])
+  , (Ident "print", Scheme [TVar "'a"] [typ| Int -> [IO | 'a] Unit |])
   ]
 
 initState = State 0 M.empty
@@ -52,66 +51,66 @@ initEnv = Env effects
 runCheck :: Check a -> (Either Error a, Constraints)
 runCheck c = evalRWS (runExceptT c) initEnv initState
 
-process :: Term -> Check Type
+process :: Term -> Check Typ
 process t = do
   ((typ, env), cs) <- listen $ infer t
   sub <- solve M.empty cs
   apply sub typ
 
-instantiate :: Scheme -> Check Type
+instantiate :: Scheme -> Check Typ
 instantiate (Scheme vs ty) = do
   newVs <- mapM (\v -> do
     -- k <- getKind
     -- var <- case k of
-    --   KType -> freshType
+    --   KTyp -> freshTyp
     --   KRow  -> freshRow
-    var <- freshType
+    var <- freshTyp
     return (v, var)) vs
   apply (M.fromList newVs) ty
 
-lookupEnv :: Var -> Check Type
+lookupEnv :: Ident -> Check Typ
 lookupEnv v = lookup v >>= instantiate
 
 fresh :: (MonadState State m) => m TVar
 fresh = do
   i <- gets _sNextVar
   modify (sNextVar %~ (+1))
-  return $ TV ("'t" ++ show i)
+  return $ TVar ("'t" ++ show i)
 
-freshType :: (MonadState State m) => m Type
-freshType = TyVar <$> fresh
+freshTyp :: (MonadState State m) => m Typ
+freshTyp = TyVar <$> fresh
 
 freshRow :: (MonadState State m) => m TVar
 freshRow = fresh
 
-constr :: Type -> Type -> Check ()
+constr :: Typ -> Typ -> Check ()
 constr a b = tell [(a, b)]
 
-infer :: Term -> Check (Type, Type)
-infer (Var v)       = (,) <$> lookupEnv v <*> freshType
-infer (Lit VBool{}) = (,) (TyLit "Bool")  <$> freshType
-infer (Lit VInt{})  = (,) (TyLit "Int")   <$> freshType
-infer (Lit VUnit{}) = (,) (TyLit "()")    <$> freshType
-infer (Abs (Bind v _) term) = do
-  tv <- freshType
+infer :: Term -> Check (Typ, Typ)
+infer (Var v)       = (,) <$> lookupEnv v <*> freshTyp
+-- infer (Lit VBool{}) = (,) (TyLit "Bool")  <$> freshTyp
+infer (Lit VInt{})  = (,) (TyLit $ Ident "Int")  <$> freshTyp
+infer (Lit VUnit{}) = (,) (TyLit $ Ident "Unit") <$> freshTyp
+infer (Abs v term) = do
+  tv <- freshTyp
   (ty, row) <- inEnv v (Scheme [] tv) $ infer term
-  rv <- freshType
+  rv <- freshTyp
   return (TyArr tv row ty, rv)
 infer (App t1 t2) = do
   (ty1, e1) <- infer t1
   (ty2, e2) <- infer t2
-  tv <- freshType
-  tr <- freshType
+  tv <- freshTyp
+  tr <- freshTyp
   constr ty1 (TyArr ty2 tr tv)
   constr e1 e2
   constr tr e1
   return (tv, tr)
-infer (Let (Bind v _) body exp) = do
+infer (Let v body exp) = do
   ((ty1, e1), cs) <- listen $ infer body
   s <- gets _sSubst
   s' <- solve s cs
   modify $ sSubst .~ s'
-  constr e1 (TyRow [] Nothing)
+  constr e1 (TyRow [] Closed)
   env <- ask
   let s = generalize env ty1
   inEnv v s $ infer exp
@@ -119,14 +118,14 @@ infer (Let (Bind v _) body exp) = do
 
 
 
-generalize :: Environment -> Type -> Scheme
+generalize :: Environment -> Typ -> Scheme
 generalize env ty = Scheme (S.toList vars) ty
   where
     vars = ftv ty `S.difference` ftv env
 
 
 
-unify :: (MonadError Error m, MonadState State m) => Subst -> (Type, Type) -> m (Subst, Constraints)
+unify :: (MonadError Error m, MonadState State m) => Subst -> (Typ, Typ) -> m (Subst, Constraints)
 unify s (TyVar a, b) = (,) <$> compose (M.singleton a b) s <*> return []
 unify s (a, TyVar b) = (,) <$> compose (M.singleton b a) s <*> return []
 unify s (TyLit a, TyLit b) | a == b = return (s, [])
@@ -135,31 +134,31 @@ unify s (TyRow l1 v1, TyRow l2 v2) = unifyRows s l1 l2 v1 v2
 unify s (t1, t2) = throw $ UnificationError $ "cannot unify " ++ show t1 ++ " with " ++ show t2
 
 unifyRows :: (MonadError Error m, MonadState State m) =>
-              Subst -> [String] -> [String] -> Maybe TVar -> Maybe TVar -> m (Subst, Constraints)
+              Subst -> [Ident] -> [Ident] -> Row -> Row -> m (Subst, Constraints)
 unifyRows s l1 l2 v1 v2 = let 
   extraInL1 = l1 \\ l2
   extraInL2 = l2 \\ l1 in
     case (v1, v2) of
-      (Nothing, Nothing) -> 
+      (Closed, Closed) -> 
         if l1 /= l2 
         then throw $ UnificationError "Cannot unify two closed rows"
         else return (s, [])
       
-      (Just a, Nothing) ->
+      (Open a, Closed) ->
         if extraInL1 /= []
         then throw $ UnificationError "Row is closed, but needs extending"
         else do
           fr <- freshRow
-          s' <- compose (M.singleton a (TyRow extraInL2 (Just fr))) s
+          s' <- compose (M.singleton a (TyRow extraInL2 (Open fr))) s
           return $ (s', [])
       
-      (Nothing, Just a) ->
+      (Closed, Open a) ->
         unifyRows s l2 l1 v2 v1
       
-      (Just a, Just b) -> do
+      (Open a, Open b) -> do
         fr <- freshRow
-        s' <- compose (M.fromList [(a, TyRow extraInL2 (Just fr)),
-                                   (b, TyRow extraInL1 (Just fr))]) s
+        s' <- compose (M.fromList [(a, TyRow extraInL2 (Open fr)),
+                                   (b, TyRow extraInL1 (Open fr))]) s
         return $ (s', [])
     
 solve :: (MonadError Error m, MonadState State m) => Subst -> Constraints -> m Subst
