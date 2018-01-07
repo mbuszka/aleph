@@ -24,6 +24,9 @@ dependencies:
 - syb
 - strict
 - lens
+- BNFC-meta
+- happy-meta
+- alex-meta
 
 library:
   source-dirs: src
