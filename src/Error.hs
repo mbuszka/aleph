@@ -4,9 +4,12 @@ module Error where
 
 import Control.Monad.Except
 
+import Grammar
+
 data Error
   = ParseError String
   | UnboundVariable String
+  | UnknownOperation Ident
   | TypeError String
   | KindError String
   | UnificationError String

@@ -14,16 +14,38 @@ import Control.Monad.Except
 
 import Data.Bifunctor
 
+import Check
 import Error
 import Grammar
-import Check
+import Parse
 
-test :: Either Error Typ
-test = do
-  t <- parse "fn x -> fn y -> (fn a -> print 4) (y x)"
-  fst $ runCheck $ process t
+unEither :: (MonadError Error m, MonadIO m) => Either Error a -> m a
+unEither x = case x of
+  Left e -> throw e
+  Right t -> return t
+
+test :: (MonadError Error m, MonadIO m) => String -> m ()
+test s = do
+  t <- unEither $ parse s
+  let (p, cs) = runCheck $ process t
+  (t, e) <- unEither p
+  liftIO $ print cs
+  liftIO $ putStrLn $ "  " ++ pShow t
+  liftIO $ putStrLn $ "  " ++ pShow e
 
 main :: IO ()
-main = case test of
-    Left err -> print err
-    Right t -> putStrLn $ pShow t
+main = do
+  putStrLn ""
+  mapM_ (\s -> putStrLn s >> (runExceptT (test s)) >> putStrLn "")
+    [ "5"
+    , "fn x -> 5"
+    , "(fn x -> 5) ()"
+    , "print"
+    , "print 5"
+    , "fn x -> print x"
+    , "fn x -> fn y -> (fn a -> print 4) (y x)"
+    , "fn x -> fn y -> z <- y x; print 5"
+    , "let id = fn x -> x in id id"
+    , "fn x -> x (x 5)"
+    , "fn x -> x 5 (x ())"
+    ]

@@ -2,7 +2,14 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 
-module Subst where
+module Subst 
+  ( Subst(..)
+  , Substitute(..)
+  , FreeVars(..)
+  , compose
+  , emptySubst
+  , extend
+  ) where
 
 import Control.Lens
 import Control.Monad.Except
@@ -16,38 +23,54 @@ import Environment
 import Error
 import Grammar
 
-type Subst = Map TVar Typ
+newtype Subst = Subst { unwrap :: Map TVar (Either Typ Row) }
+  deriving Show
 
 class Substitute a where
   apply :: (MonadError Error m) => Subst -> a -> m a
 
 class FreeVars a where
-    ftv :: a -> Set TVar
+  ftv :: a -> Set TVar
+
+emptySubst :: Subst
+emptySubst = Subst M.empty
 
 compose :: (MonadError Error m) => Subst -> Subst -> m Subst
-compose a b = M.union a <$> apply a b
+compose a b = Subst <$> (M.union (unwrap a) <$> (unwrap <$> apply a b))
+
+extend :: (MonadError Error m) => TVar -> (Either Typ Row) -> Subst -> m Subst
+extend v t s = compose (Subst $ M.singleton v t) s
 
 instance Substitute Typ where
-  apply s (TyArr t1 r t2)     = 
-    TyArr <$> (apply s t1) <*> (apply s r) <*> (apply s t2)
-  apply s v@(TyVar tv)        = return $ M.findWithDefault v tv s
-  apply s r@(TyRow _ Closed) = return r
-  apply s r@(TyRow ls (Open v)) = case M.lookup v s of
-    Nothing -> return r
-    Just (TyVar v')     -> return $ TyRow ls (Open v')
-    Just (TyRow ls' v') -> return $ TyRow (ls' ++ ls) v'
-    Just t              ->
-      throw $ KindError ("tried to substitute " ++ show t ++ "into row")
+  apply s (TyArr t1 r t2) = TyArr <$> (apply s t1) <*> (apply s r) <*> (apply s t2)
+  apply s (TyVar tv)      = case M.lookup tv $ unwrap s of
+    Nothing        -> return (TyVar tv)
+    Just (Left t)  -> return t
+    Just (Right _) -> throw $ KindError "Trying to assign row to a type var"
   apply _ l               = return $ l
+
+instance Substitute Row where
+  apply s r@(Row ls (Just v)) = case M.lookup v $ unwrap s of
+    Nothing                  -> return r
+    Just (Right (Row ls' t)) -> return $ Row (ls ++ ls') t
+    Just (Left t)            ->
+      throw $ KindError ("tried to substitute " ++ show t ++ "into row")
+  apply s r = return r
+
+instance Substitute Subst where
+  apply s s' = Subst <$> (apply s $ unwrap s')
 
 instance (Substitute a, Traversable f) => Substitute (f a) where
   apply s = mapM (apply s)
 
 instance FreeVars Typ where
   ftv (TyArr t1 r t2)    = ftv t1 `S.union` ftv r `S.union` ftv t2
-  ftv (TyRow _ (Open v)) = S.singleton v
   ftv _                  = S.empty
-  
+
+instance FreeVars Row where
+  ftv (Row _ (Just v)) = S.singleton v
+  ftv _                = S.empty
+
 instance FreeVars Scheme where
   ftv (Scheme bound ty) = ftv ty `S.difference` S.fromList bound
 
