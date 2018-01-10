@@ -1,38 +1,56 @@
 {-# LANGUAGE
-    TemplateHaskell
-  , QuasiQuotes
-  , FlexibleContexts
-  , FlexibleInstances
+  FlexibleContexts
 #-}
 
 module Parse where
 
+import Control.Applicative
 import Control.Monad.Except
-import Language.LBNF.Compiletime
+import Control.Monad.Identity
+
+import Data.Text(Text)
+
+import qualified Text.Parsec as P
+import           Text.Parsec(ParsecT)
 
 import Error
 import Grammar
-import Grammar.Impl
+import Lex
 
-class Parse a where
-  parse :: (MonadError Error m) => String -> m a
+type Parser a = ParsecT Text () Identity a
 
-instance Parse Top where
-  parse s = case pTop $ myLexer s of
-    Ok t  -> return t
-    Bad s -> throw $ ParseError s 
+parse :: (MonadError Error m) => Parser a -> Text -> m a
+parse p s = case P.parse p "" s of
+  Left err -> throw $ ParseError (show err)
+  Right x  -> return x
 
-instance Parse Typ where
-  parse s = case pSTyp $ myLexer s of
-    Ok t  -> return $ fromSTyp t
-    Bad s -> throw $ ParseError s
+top =  Def <$> (res "let" >> ident) <*> (resOp "=" >> term)
+   <|> Run <$> (res "run" >> term)
+   <|> EffDef <$> (res "eff" >> tyLit) <*> (resOp "=" >> opDefs)
 
-instance Parse [Top] where
-  parse s = case pListTop $ myLexer s of
-    Ok t  -> return t
-    Bad s -> throw $ ParseError s
+opDefs = P.endBy (OpDef <$> ident <*> (resOp ":" >> typ) <*> (resOp "->" >> typ)) (resOp ";")
 
-instance Parse Term where
-  parse s = case pTerm $ myLexer s of
-    Ok t  -> return t
-    Bad s -> throw $ ParseError s
+term =  Let    <$> (res "let" *> ident) <*> (resOp "=" *>  term) <*> (res "in" *> term)
+    <|> Abs    <$> (res "fn"  *> ident) <*> (resOp "->" *> term)
+    <|> Handle <$> (res "handle" *> tyLit) <*> (res "in" *> term) <*> (res "with" *> handlers)
+    <|> Lift   <$> (res "lift"   *> tyLit) <*> (res "in" *> term2)
+    <|> (P.try $ Bind   <$> (ident <* resOp "<-") <*> term <*> (resOp ";" *> term))
+    <|> term1
+
+term1 =  foldl1 App <$> P.many1 term2
+
+term2 =  Var <$> ident
+     <|> Lit <$> val
+     <|> parens term
+
+handlers = many  (  Op  <$> ident <*> ident <*> (resOp "," *> ident) <*> (resOp "->" *> term)
+                <|> Ret <$> (res "return" *> ident) <*> (resOp "->" *> term)
+                 )
+              
+typ =  (P.try $ TyArr <$> typ1 <*> (resOp "->" *> row) <*> typ)
+   <|> typ1
+
+typ1 = TyLit <$> tyLit
+
+row =  Row [] . Just <$> tyVar
+   <|> Row <$> (str "[" *> P.many tyLit) <*> (optional (str "|" *> tyVar) <* str "]")

@@ -1,7 +1,7 @@
 {-# LANGUAGE
     FlexibleContexts
   , TemplateHaskell
-  , QuasiQuotes
+  , OverloadedStrings
 #-}
 
 module Check where
@@ -13,24 +13,31 @@ import Control.Monad.Writer
 import Control.Monad.RWS
 import Control.Lens
 
+import           Data.List((\\))
 import qualified Data.Map as M
 import           Data.Map(Map)
 import qualified Data.Set as S
 import           Data.Set(Set)
-import Data.List((\\))
--- import Data.Maybe(fromMaybe)
+import qualified Data.Text as T
+import qualified Data.Text.Prettyprint.Doc as P
 
 import Prelude hiding (lookup)
 
 import Environment
 import Error
-import Subst
 import Grammar
+import Subst
+import Print
+
 
 data Constraint
   = TyConstr Typ Typ
   | RoConstr Row Row
   deriving Show
+
+instance Pretty Constraint where
+  pretty (TyConstr a b) = pretty a P.<+> "~" P.<+> pretty b
+  pretty (RoConstr a b) = pretty a P.<+> "~" P.<+> pretty b
 
 type Constraints = [Constraint]
 
@@ -74,11 +81,11 @@ instantiate (Scheme vs ty) = do
 lookupEnv :: Ident -> Check Typ
 lookupEnv v = lookup v >>= instantiate
 
-fresh :: (MonadState State m) => m TVar
+fresh :: (MonadState State m) => m TyVar
 fresh = do
   i <- gets _sNextVar
   modify (sNextVar %~ (+1))
-  return $ TVar ("'t" ++ show i)
+  return $ TV $ T.pack ("t" ++ show i)
 
 freshTyp :: (MonadState State m) => m Typ
 freshTyp = TyVar <$> fresh
@@ -95,8 +102,8 @@ constrRow a b = tell [RoConstr a b]
 infer :: Term -> Check (Typ, Row)
 infer (Var v)       = (,) <$> lookupEnv v <*> freshRow
 -- infer (Lit VBool{}) = (,) (TyLit "Bool")  <$> freshTyp
-infer (Lit VInt{})  = (,) (TyLit $ Ident "Int")  <$> freshRow
-infer (Lit VUnit{}) = (,) (TyLit $ Ident "Unit") <$> freshRow
+infer (Lit VInt{})  = (,) (TyLit $ TL "Int")  <$> freshRow
+infer (Lit VUnit{}) = (,) (TyLit $ TL "Unit") <$> freshRow
 infer (Abs v term) = do
   tv <- freshTyp
   (ty, row) <- inEnv v (Scheme [] tv) $ infer term

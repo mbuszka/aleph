@@ -1,7 +1,7 @@
 {-# LANGUAGE
     FlexibleContexts
+  , OverloadedStrings
   , TemplateHaskell
-  , QuasiQuotes
 #-}
 
 module Environment where
@@ -16,27 +16,27 @@ import           Data.Map (Map)
 import Error
 import Grammar
 
-data Scheme = Scheme [TVar] Typ
+data Scheme = Scheme [TyVar] Typ
   deriving Show
 
 data Environment = Env
   { _eTypeContext :: Map Ident Scheme
-  , _eOperations  :: Map Ident (Ident, Typ, Typ)
+  , _eOperations  :: Map Ident (TyLit, Typ, Typ)
   } deriving (Show)
 
 makeLenses ''Environment
 
-operations :: Map Ident (Ident, Typ, Typ)
+operations :: Map Ident (TyLit, Typ, Typ)
 operations = M.fromList
-  [ (Ident "put",   (Ident "ST", tv "Int",  tv "Unit"))
-  , (Ident "get",   (Ident "ST", tv "Unit", tv "Int" ))
-  , (Ident "print", (Ident "IO", tv "Int",  tv "Unit"))
+  [ (ID "put",   (TL "ST", tv "Int",  tv "Unit"))
+  , (ID "get",   (TL "ST", tv "Unit", tv "Int" ))
+  , (ID "print", (TL "IO", tv "Int",  tv "Unit"))
   ]
-  where tv = TyVar . TVar
+  where tv = TyVar . TV
 
 effects :: Map Ident Scheme
 effects = fmap (\(eff, a, b) -> 
-  let v = TVar "'a" in
+  let v = TV "'a" in
     Scheme [v] (TyArr a (Row [eff] (Just v)) b)) operations
 
 initEnv :: Environment
@@ -49,7 +49,7 @@ lookup v = do
     Just t -> return t
     Nothing -> throwError $ UnboundVariable (show v)
 
-lookupEff :: (MonadReader Environment m, MonadError Error m) => Ident -> m (Ident, Typ, Typ)
+lookupEff :: (MonadReader Environment m, MonadError Error m) => Ident -> m (TyLit, Typ, Typ)
 lookupEff v = do
   ml <- asks (\e -> e ^. eOperations . to (M.lookup v))
   case ml of

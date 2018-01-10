@@ -27,6 +27,9 @@ dependencies:
 - BNFC-meta
 - happy-meta
 - alex-meta
+- parsec
+- text
+- prettyprinter
 
 library:
   source-dirs: src

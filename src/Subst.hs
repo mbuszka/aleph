@@ -23,14 +23,14 @@ import Environment
 import Error
 import Grammar
 
-newtype Subst = Subst { unwrap :: Map TVar (Either Typ Row) }
+newtype Subst = Subst { unwrap :: Map TyVar (Either Typ Row) }
   deriving Show
 
 class Substitute a where
   apply :: (MonadError Error m) => Subst -> a -> m a
 
 class FreeVars a where
-  ftv :: a -> Set TVar
+  ftv :: a -> Set TyVar
 
 emptySubst :: Subst
 emptySubst = Subst M.empty
@@ -38,7 +38,7 @@ emptySubst = Subst M.empty
 compose :: (MonadError Error m) => Subst -> Subst -> m Subst
 compose a b = Subst <$> (M.union (unwrap a) <$> (unwrap <$> apply a b))
 
-extend :: (MonadError Error m) => TVar -> (Either Typ Row) -> Subst -> m Subst
+extend :: (MonadError Error m) => TyVar -> (Either Typ Row) -> Subst -> m Subst
 extend v t s = compose (Subst $ M.singleton v t) s
 
 instance Substitute Typ where

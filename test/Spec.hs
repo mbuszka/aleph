@@ -1,13 +1,15 @@
 {-# LANGUAGE
-    TemplateHaskell
-  , QuasiQuotes
-  , FlexibleContexts
-  , FlexibleInstances
+    FlexibleContexts
+  , OverloadedStrings
 #-}
 
 import           System.IO
 import qualified System.IO.Strict as S
-import qualified Data.Map as M
+
+import qualified Data.Map  as M
+import qualified Data.Text as T
+import           Data.Text(Text)
+import           Data.Text.Prettyprint.Doc
 
 import Control.Monad
 import Control.Monad.Except
@@ -18,25 +20,24 @@ import Check
 import Error
 import Grammar
 import Parse
+import Print
 
 unEither :: (MonadError Error m, MonadIO m) => Either Error a -> m a
 unEither x = case x of
   Left e -> throw e
   Right t -> return t
 
-test :: (MonadError Error m, MonadIO m) => String -> m ()
+test :: (MonadError Error m, MonadIO m) => Text -> m ()
 test s = do
-  t <- unEither $ parse s
+  t <- parse term s
   let (p, cs) = runCheck $ process t
   (t, e) <- unEither p
-  liftIO $ print cs
-  liftIO $ putStrLn $ "  " ++ pShow t
-  liftIO $ putStrLn $ "  " ++ pShow e
+  liftIO $ putDocW 80 $ pretty cs <> line <> pretty t <+> "|" <+> pretty e <> line
 
 main :: IO ()
 main = do
   putStrLn ""
-  mapM_ (\s -> putStrLn s >> (runExceptT (test s)) >> putStrLn "")
+  mapM_ (\s -> putStrLn (T.unpack s) >> (runExceptT (test s)) >> putStrLn "")
     [ "5"
     , "fn x -> 5"
     , "(fn x -> 5) ()"
