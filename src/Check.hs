@@ -10,8 +10,8 @@ module Check where
 import Control.Monad.Except
 import Control.Monad.State hiding (State)
 import Control.Monad.Reader
-import Control.Monad.Writer
-import Control.Monad.RWS
+import Control.Monad.Writer hiding ((<>))
+import Control.Monad.RWS(runRWST, RWST(..))
 import Control.Monad
 import Control.Lens
 
@@ -71,6 +71,7 @@ runCheck c = runRWST (runExceptT c) initEnv initState
 process :: (Check m, MonadIO m) => Term -> m (Typ, Row)
 process t = do
   ((typ, env), cs) <- listen $ infer t
+  -- liftIO $ putDocW 80 $ pretty cs <> line
   s   <- gets _sSubst
   sub <- solve s cs
   -- liftIO $ putDocW 80 $ pretty sub P.<> P.line
@@ -155,19 +156,21 @@ infer (Lift lbl t) = do
   constrRow (Row [lbl] (Just fr)) eff
   return (ty, eff)
 
-inferHandler :: Check m => TyLit -> (Typ, Row) -> Handler -> m (Maybe Ident, Typ)
-inferHandler hLbl (resT, resE) (Op id arg cont exp) = do
+inferHandler :: Check m => TyLit -> (Typ, Typ, Row) -> Handler -> m (Maybe Ident, Typ)
+inferHandler hLbl (resT, contT, resE) (Op id arg cont exp) = do
   (lbl, argT, retT) <- lookupOp id
   when (hLbl /= lbl) $ throw $ 
     TypeError $ "Could not match operation's effect" <+> pretty lbl
              <+> "with handler's effect" <+> pretty hLbl
   (ty, env) <- inEnv arg (Scheme [] argT) 
-               $ inEnv cont (Scheme [] (TyArr retT resE resT)) $ infer exp
+               $ inEnv cont (Scheme [] (TyArr retT resE contT)) $ infer exp
   constrRow env resE
+  constrTyp ty  contT
   return (Just id, ty)
-inferHandler hLbl (resT, resE) (Ret val exp) = do
+inferHandler hLbl (resT, contT, resE) (Ret val exp) = do
   (ty, env) <- inEnv val (Scheme [] resT) $ infer exp
   constrRow env resE
+  constrTyp ty contT
   return (Nothing, ty)
   
 
@@ -176,7 +179,8 @@ inferHandler hLbl (resT, resE) (Ret val exp) = do
 
 inferHandlers :: Check m => TyLit -> (Typ, Row) -> [Handler] -> m (Typ, Row)
 inferHandlers lbl (resT, resE) hs = do
-  types <- mapM (inferHandler lbl (resT, resE)) hs
+  contT <- freshTyp
+  types <- mapM (inferHandler lbl (resT, contT, resE)) hs
   desired <- lookupEff lbl
   -- liftIO $ putDocW 80 $ pretty desired
   let idents = catMaybes . map fst $ types

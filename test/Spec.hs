@@ -55,8 +55,11 @@ main = do
     , "print"
     , "print 5"
     , "fn x -> print x"
-    , "handle ST in put 5 with \
+    , "handle IO in print 5 with \
+      \ print x, r -> r (); \
+      \ return x -> (); "
+    , "(handle ST in u <- put 5, get () with \
        \ put x, r -> fn s -> (r ()) x; \
        \ get u, r -> fn s -> (r s) s;  \
-       \ return x -> fn s -> s;"
+       \ return x -> fn s -> s;)"
     ]
