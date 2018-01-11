@@ -28,11 +28,11 @@ makeLenses ''Environment
 
 operations :: Map Ident (TyLit, Typ, Typ)
 operations = M.fromList
-  [ (ID "put",   (TL "ST", tv "Int",  tv "Unit"))
-  , (ID "get",   (TL "ST", tv "Unit", tv "Int" ))
-  , (ID "print", (TL "IO", tv "Int",  tv "Unit"))
+  [ (ID "put",   (TL "ST", tl "Int",  tl "Unit"))
+  , (ID "get",   (TL "ST", tl "Unit", tl "Int" ))
+  , (ID "print", (TL "IO", tl "Int",  tl "Unit"))
   ]
-  where tv = TyVar . TV
+  where tl = TyLit . TL
 
 effects :: Map Ident Scheme
 effects = fmap (\(eff, a, b) -> 

@@ -22,9 +22,17 @@ import           Data.Set (Set)
 import Environment
 import Error
 import Grammar
+import Print
 
 newtype Subst = Subst { unwrap :: Map TyVar (Either Typ Row) }
   deriving Show
+
+instance Pretty (Either Typ Row) where
+  pretty (Left  t) = pretty t
+  pretty (Right r) = pretty r
+
+instance Pretty Subst where
+  pretty = pretty . M.toList . unwrap
 
 class Substitute a where
   apply :: (MonadError Error m) => Subst -> a -> m a

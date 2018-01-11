@@ -1,5 +1,6 @@
 {-# LANGUAGE
-    FlexibleContexts
+    ConstraintKinds
+  , FlexibleContexts
   , TemplateHaskell
   , OverloadedStrings
 #-}
@@ -52,22 +53,30 @@ data State = State
 
 makeLenses ''State
 
-type Check a = ExceptT Error (RWS Environment Constraints State) a
+type Check m = 
+  ( MonadError Error m
+  , MonadReader Environment m
+  , MonadState State m
+  , MonadWriter Constraints m
+  , MonadIO m
+  )
 
 initState = State 0 emptySubst
 
-runCheck :: Check a -> (Either Error a, Constraints)
-runCheck c = evalRWS (runExceptT c) initEnv initState
+runCheck :: ExceptT Error (RWST Environment Constraints State IO) a -> IO (Either Error a, State, Constraints)
+runCheck c = runRWST (runExceptT c) initEnv initState
 
-process :: Term -> Check (Typ, Row)
+process :: (Check m, MonadIO m) => Term -> m (Typ, Row)
 process t = do
   ((typ, env), cs) <- listen $ infer t
-  sub <- solve emptySubst cs
+  s   <- gets _sSubst
+  sub <- solve s cs
+  -- liftIO $ putDocW 80 $ pretty sub P.<> P.line
   t <- apply sub typ
   e <- apply sub env
   return (t, e)
 
-instantiate :: Scheme -> Check Typ
+instantiate :: Check m => Scheme -> m Typ
 instantiate (Scheme vs ty) = do
   newVs <- mapM (\v -> do
     -- k <- getKind
@@ -78,7 +87,7 @@ instantiate (Scheme vs ty) = do
     return (v, Right var)) vs
   apply (Subst $ M.fromList newVs) ty
 
-lookupEnv :: Ident -> Check Typ
+lookupEnv :: Check m => Ident -> m Typ
 lookupEnv v = lookup v >>= instantiate
 
 fresh :: (MonadState State m) => m TyVar
@@ -93,13 +102,13 @@ freshTyp = TyVar <$> fresh
 freshRow :: (MonadState State m) => m Row
 freshRow = Row [] . Just <$> fresh
 
-constrTyp :: Typ -> Typ -> Check ()
+constrTyp :: Check m => Typ -> Typ -> m ()
 constrTyp a b = tell [TyConstr a b]
 
-constrRow :: Row -> Row -> Check ()
+constrRow :: Check m => Row -> Row -> m ()
 constrRow a b = tell [RoConstr a b]
 
-infer :: Term -> Check (Typ, Row)
+infer :: Check m => Term -> m (Typ, Row)
 infer (Var v)       = (,) <$> lookupEnv v <*> freshRow
 -- infer (Lit VBool{}) = (,) (TyLit "Bool")  <$> freshTyp
 infer (Lit VInt{})  = (,) (TyLit $ TL "Int")  <$> freshRow
@@ -165,22 +174,24 @@ generalize env ty = Scheme (S.toList vars) ty
   where
     vars = ftv ty `S.difference` ftv env
 
+type Solve m = (MonadError Error m, MonadState State m, MonadWriter Constraints m, MonadIO m) 
 
-unifyT :: (MonadError Error m, MonadState State m) => Subst -> (Typ, Typ) -> m (Subst, Constraints)
+unifyT :: Solve m => Subst -> (Typ, Typ) -> m (Subst, Constraints)
 unifyT s (TyVar a, b) = (,) <$> extend a (Left b) s <*> return []
 unifyT s (a, TyVar b) = (,) <$> extend b (Left a) s <*> return []
 unifyT s (TyLit a, TyLit b) | a == b = return (s, [])
 unifyT s (TyArr a1 r1 b1,  TyArr a2 r2 b2) = 
-  return (s, 
-    [ TyConstr a1 a2
-    , RoConstr r1 r2
-    , TyConstr b1 b2
-    ])
+  let cs = [ TyConstr a1 a2
+           , RoConstr r1 r2
+           , TyConstr b1 b2
+           ]
+  in do
+    tell cs
+    return (s, cs)
 unifyT s (t1, t2) = throw $ UnificationError $ "cannot unify " ++ show t1 ++ " with " ++ show t2
 
-unifyR :: (MonadError Error m, MonadState State m) =>
-              Subst -> (Row, Row) -> m (Subst, Constraints)
-unifyR s p@(Row l1 v1, Row l2 v2) = let
+unifyR :: Solve m => Subst -> (Row, Row) -> m (Subst, Constraints)
+unifyR s (Row l1 v1, Row l2 v2) = let
   extraInL1 = l1 \\ l2
   extraInL2 = l2 \\ l1 in
     case (v1, v2) of
@@ -202,14 +213,16 @@ unifyR s p@(Row l1 v1, Row l2 v2) = let
       
       (Just a, Just b) -> do
         fr <- fresh
-        s' <- extend a (Right $ Row extraInL2 (Just fr)) s >>=
-                extend b (Right $ Row extraInL1 (Just fr))
+        liftIO $ putDocW 80 $ "unifiying" P.<+> pretty (Row l1 v1) P.<+> "and" P.<+> pretty (Row l2 v2) P.<> P.line
+        s' <- (extend a (Right $ Row extraInL2 (Just fr)) s >>=
+                extend b (Right $ Row extraInL1 (Just fr)))
+        liftIO $ putDocW 80 $ "resulting subst:" P.<+> pretty s' P.<> P.line
         return $ (s', [])
     
-solve :: (MonadError Error m, MonadState State m) => Subst -> Constraints -> m Subst
+solve :: Solve m => Subst -> Constraints -> m Subst
 solve s (c:cs) = do
   c' <- apply s c
-  (s', cs') <- case c of
+  (s', cs') <- case c' of
     TyConstr a b -> unifyT s (a, b)
     RoConstr a b -> unifyR s (a, b)
   solve s' (cs' ++ cs)
