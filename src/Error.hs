@@ -10,6 +10,7 @@ data Error
   = ParseError String
   | UnboundVariable String
   | UnknownOperation Ident
+  | UnknownEffect TyLit
   | TypeError String
   | KindError String
   | UnificationError String

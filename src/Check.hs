@@ -14,9 +14,10 @@ import Control.Monad.Writer
 import Control.Monad.RWS
 import Control.Lens
 
-import           Data.List((\\))
+import           Data.List((\\), sort)
 import qualified Data.Map as M
 import           Data.Map(Map)
+import           Data.Maybe(catMaybes, isNothing)
 import qualified Data.Set as S
 import           Data.Set(Set)
 import qualified Data.Text as T
@@ -141,33 +142,50 @@ infer (Let v body exp) = do
   env <- ask
   let s = generalize env ty1
   inEnv v s $ infer exp
--- infer (Handle t hs) = do
---   (tyh, eh, lbl) <- inferHandlers hs
---   (ty1, e1) <- infer t
---   fr <- freshRow
---   constr e1 (Row [lbl] (Just fr))
---   constr (TyVar fr) eh
---   constr ty1 tyh
---   return (tyh, eh)
+infer (Handle lbl t hs) = do
+  (ty1, e1) <- infer t
+  fr <- fresh
+  constrRow e1 (Row [lbl] (Just fr))
+  (tyR, eR) <- inferHandlers lbl (ty1, (Row [] (Just fr))) hs
+  return (tyR, eR)
 infer (Lift lbl t) = do
   fr <- fresh
   (ty, eff) <- infer t
   constrRow (Row [lbl] (Just fr)) eff
   return (ty, eff)
 
--- extractLabel :: Handler -> Set Ident
--- extractLabel (Op x _ _ _) = S.singleton x
--- extractLabel (Ret _ _) = S.empty
+inferHandler :: Check m => TyLit -> (Typ, Row) -> Handler -> m (Maybe Ident, Typ)
+inferHandler hLbl (resT, resE) (Op id arg cont exp) = do
+  (lbl, argT, retT) <- lookupOp id
+  if hLbl /= lbl then throw $ 
+    TypeError ("Could not match eff " ++ show lbl ++ " of " ++ show id ++ " with required effect "
+               ++ show hLbl) else return ()
+  (ty, env) <- inEnv arg (Scheme [] argT) 
+               $ inEnv cont (Scheme [] (TyArr retT resE resT)) $ infer exp
+  constrRow env resE
+  return (Just id, ty)
+inferHandler hLbl (resT, resE) (Ret val exp) = do
+  (ty, env) <- inEnv val (Scheme [] resT) $ infer exp
+  constrRow env resE
+  return (Nothing, ty)
+  
 
 -- -- TODO We probably should pass type of handled expression,
 -- -- to construct type of continuation.
 
--- inferHandlers :: [Handler] -> Check (Typ, Typ, Ident)
--- inferHandlers hs = do
---   lbls <- mapM lookupEff . S.toList . fold extractLabel S.empty $ hs
---   lbl <- case S.fromList . S.toList $ lbls of
---     [l] -> return l
---     ls  -> throw $ TypeError $ "Handlers had unexpected amount of effects: " ++ show ls
+inferHandlers :: Check m => TyLit -> (Typ, Row) -> [Handler] -> m (Typ, Row)
+inferHandlers lbl (resT, resE) hs = do
+  types <- mapM (inferHandler lbl (resT, resE)) hs
+  desired <- lookupEff lbl
+  -- liftIO $ putDocW 80 $ pretty desired
+  let idents = catMaybes . map fst $ types
+  let ret    = filter isNothing . map fst $ types
+  if sort idents /= desired || ret /= [Nothing]
+    then throw $ TypeError ("Wrong handlers, expected " ++ show desired ++ " got " ++ show idents)
+    else return ()
+  let typs = map snd types
+  zipWithM constrTyp typs (tail typs)
+  return (head typs, resE)
 
 generalize :: Environment -> Typ -> Scheme
 generalize env ty = Scheme (S.toList vars) ty
@@ -213,10 +231,10 @@ unifyR s (Row l1 v1, Row l2 v2) = let
       
       (Just a, Just b) -> do
         fr <- fresh
-        liftIO $ putDocW 80 $ "unifiying" P.<+> pretty (Row l1 v1) P.<+> "and" P.<+> pretty (Row l2 v2) P.<> P.line
+        -- liftIO $ putDocW 80 $ "unifiying" P.<+> pretty (Row l1 v1) P.<+> "and" P.<+> pretty (Row l2 v2) P.<> P.line
         s' <- (extend a (Right $ Row extraInL2 (Just fr)) s >>=
                 extend b (Right $ Row extraInL1 (Just fr)))
-        liftIO $ putDocW 80 $ "resulting subst:" P.<+> pretty s' P.<> P.line
+        -- liftIO $ putDocW 80 $ "resulting subst:" P.<+> pretty s' P.<> P.line
         return $ (s', [])
     
 solve :: Solve m => Subst -> Constraints -> m Subst

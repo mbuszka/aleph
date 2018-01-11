@@ -39,7 +39,7 @@ lexer = P.makeTokenParser $ P.LanguageDef
   , P.opStart         = P.oneOf "-<>"
   , P.opLetter        = P.oneOf "-<>"
   , P.reservedNames   = map T.unpack $ S.toList reservedTokens
-  , P.reservedOpNames = [ "=", "->", ":" ]
+  , P.reservedOpNames = [ "=", "->", ":", "," ]
   , P.caseSensitive   = True
   }
 
@@ -52,6 +52,10 @@ reservedTokens = S.fromList
   [ "let"
   , "run"
   , "in"
+  , "fn"
+  , "handle"
+  , "with"
+  , "return"
   ]
 
 isReserved txt = S.member txt reservedTokens
@@ -62,10 +66,10 @@ resOp = P.reservedOp lexer
 
 parens = P.parens lexer
 
-str s = lexeme $ P.string s 
+str s = lexeme $ P.string s
 
 val =  VInt <$> P.integer lexer
-   <|> pure VUnit <* res "()"
+   <|> pure VUnit <* P.try (str "()")
 
 tyVar = lexeme $ P.try $ do
   t <- (do

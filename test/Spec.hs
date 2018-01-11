@@ -32,23 +32,31 @@ unEither x = case x of
 test :: (MonadError Error m, MonadIO m) => Text -> m ()
 test s = do
   t <- parse term s
+  liftIO $ putDocW 80 $ pretty t <> line
   (p, st, cs) <- liftIO $ runCheck $ process t
   (t, e) <- unEither p
-  liftIO $ putDocW 80 $ pretty cs <> line <> pretty t <+> "|" <+> pretty e <> line
+  liftIO $ putDocW 80 $ -- pretty cs <> line <> 
+                        pretty t <+> "|" <+> pretty e <> line
+
+reportError :: (MonadIO m) => ExceptT Error m a -> m ()
+reportError x = do
+  e <- runExceptT x
+  case e of
+    Left err -> liftIO $ print err
+    Right x  -> return ()
 
 main :: IO ()
 main = do
   putStrLn ""
-  mapM_ (\s -> putStrLn (T.unpack s) >> (runExceptT (test s)) >> putStrLn "")
+  mapM_ (\s -> reportError (test s) >> putStrLn "")
     [ "5"
-    -- , "fn x -> 5"
-    -- , "(fn x -> 5) ()"
-    -- , "print"
+    , "fn x -> 5"
+    , "(fn x -> 5) ()"
+    , "print"
     , "print 5"
-    -- , "fn x -> print x"
-    -- , "fn x -> fn y -> (fn a -> print 4) (y x)"
-    -- , "fn x -> fn y -> z <- y x; print 5"
-    -- , "let id = fn x -> x in id id"
-    -- , "fn x -> x (x 5)"
-    -- , "fn x -> x 5 (x ())"
+    , "fn x -> print x"
+    , "handle ST in put 5 with \
+       \ put x, r -> fn s -> (r ()) x; \
+       \ get u, r -> fn s -> (r s) s;  \
+       \ return x -> fn s -> s;"
     ]
