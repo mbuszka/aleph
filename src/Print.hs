@@ -5,6 +5,9 @@
 module Print 
   ( Pretty(..)
   , putDocW
+  , (<+>)
+  , line
+  , (<>)
   ) where
 
 import qualified Data.Text  as T

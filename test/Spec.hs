@@ -42,7 +42,7 @@ reportError :: (MonadIO m) => ExceptT Error m a -> m ()
 reportError x = do
   e <- runExceptT x
   case e of
-    Left err -> liftIO $ print err
+    Left err -> liftIO $ putDocW 80 $ pretty err
     Right x  -> return ()
 
 main :: IO ()

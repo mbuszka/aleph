@@ -1,6 +1,8 @@
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE 
+    FlexibleInstances
+  , FlexibleContexts
+  , OverloadedStrings
+#-}
 
 module Subst 
   ( Subst(..)
@@ -54,7 +56,7 @@ instance Substitute Typ where
   apply s (TyVar tv)      = case M.lookup tv $ unwrap s of
     Nothing        -> return (TyVar tv)
     Just (Left t)  -> return t
-    Just (Right _) -> throw $ KindError "Trying to assign row to a type var"
+    Just (Right _) -> throw $ KindError $ "Tried to assign row to a type var" <+> pretty tv
   apply _ l               = return $ l
 
 instance Substitute Row where
@@ -62,7 +64,7 @@ instance Substitute Row where
     Nothing                  -> return r
     Just (Right (Row ls' t)) -> return $ Row (ls ++ ls') t
     Just (Left t)            ->
-      throw $ KindError ("tried to substitute " ++ show t ++ "into row")
+      throw $ KindError $ "Tried to assign type to row var" <+> pretty v
   apply s r = return r
 
 instance Substitute Subst where

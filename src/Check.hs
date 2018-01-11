@@ -12,6 +12,7 @@ import Control.Monad.State hiding (State)
 import Control.Monad.Reader
 import Control.Monad.Writer
 import Control.Monad.RWS
+import Control.Monad
 import Control.Lens
 
 import           Data.List((\\), sort)
@@ -157,9 +158,9 @@ infer (Lift lbl t) = do
 inferHandler :: Check m => TyLit -> (Typ, Row) -> Handler -> m (Maybe Ident, Typ)
 inferHandler hLbl (resT, resE) (Op id arg cont exp) = do
   (lbl, argT, retT) <- lookupOp id
-  if hLbl /= lbl then throw $ 
-    TypeError ("Could not match eff " ++ show lbl ++ " of " ++ show id ++ " with required effect "
-               ++ show hLbl) else return ()
+  when (hLbl /= lbl) $ throw $ 
+    TypeError $ "Could not match operation's effect" <+> pretty lbl
+             <+> "with handler's effect" <+> pretty hLbl
   (ty, env) <- inEnv arg (Scheme [] argT) 
                $ inEnv cont (Scheme [] (TyArr retT resE resT)) $ infer exp
   constrRow env resE
@@ -180,9 +181,10 @@ inferHandlers lbl (resT, resE) hs = do
   -- liftIO $ putDocW 80 $ pretty desired
   let idents = catMaybes . map fst $ types
   let ret    = filter isNothing . map fst $ types
-  if sort idents /= desired || ret /= [Nothing]
-    then throw $ TypeError ("Wrong handlers, expected " ++ show desired ++ " got " ++ show idents)
-    else return ()
+  when (sort idents /= desired || ret /= [Nothing]) $ throw $
+    TypeError $ "Insufficient handlers or missing return clause;"
+             <+> "got" <+> pretty idents
+             <+> "expected" <+> pretty desired
   let typs = map snd types
   zipWithM constrTyp typs (tail typs)
   return (head typs, resE)
@@ -206,21 +208,21 @@ unifyT s (TyArr a1 r1 b1,  TyArr a2 r2 b2) =
   in do
     tell cs
     return (s, cs)
-unifyT s (t1, t2) = throw $ UnificationError $ "cannot unify " ++ show t1 ++ " with " ++ show t2
+unifyT s (t1, t2) = throw $ UnificationError $ pretty t1 <+> "and" <+> pretty t2
 
 unifyR :: Solve m => Subst -> (Row, Row) -> m (Subst, Constraints)
-unifyR s (Row l1 v1, Row l2 v2) = let
+unifyR s (r1@(Row l1 v1), r2@(Row l2 v2)) = let
   extraInL1 = l1 \\ l2
   extraInL2 = l2 \\ l1 in
     case (v1, v2) of
       (Nothing, Nothing) -> 
         if l1 /= l2 
-        then throw $ UnificationError "Cannot unify two closed rows"
+        then throw $ UnificationError $ pretty r1 <+> "and" <+> pretty r2
         else return (s, [])
       
       (Just a, Nothing) ->
         if extraInL1 /= []
-        then throw $ UnificationError "Row is closed, but needs extending"
+        then throw $ UnificationError $ pretty r1 <+> "and" <+> pretty r2
         else do
           fr <- fresh
           s' <- extend a (Right $ Row extraInL2 (Just fr)) s
