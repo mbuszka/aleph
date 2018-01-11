@@ -45,10 +45,12 @@ class FreeVars a where
 emptySubst :: Subst
 emptySubst = Subst M.empty
 
-compose :: (MonadError Error m) => Subst -> Subst -> m Subst
-compose a b = Subst <$> (M.union (unwrap a) <$> (unwrap <$> apply a b))
+compose :: (MonadError Error m, MonadIO m) => Subst -> Subst -> m Subst
+compose a b = do
+  -- liftIO $ putDocW 80 $ "extending subst with" <+> pretty a <> line
+  Subst <$> (M.union (unwrap a) <$> (unwrap <$> apply a b))
 
-extend :: (MonadError Error m) => TyVar -> (Either Typ Row) -> Subst -> m Subst
+extend :: (MonadError Error m, MonadIO m) => TyVar -> (Either Typ Row) -> Subst -> m Subst
 extend v t s = compose (Subst $ M.singleton v t) s
 
 instance Substitute Typ where
@@ -70,8 +72,12 @@ instance Substitute Row where
 instance Substitute Subst where
   apply s s' = Subst <$> (apply s $ unwrap s')
 
-instance (Substitute a, Traversable f) => Substitute (f a) where
+instance (Substitute a) => Substitute (Map k a) where
   apply s = mapM (apply s)
+
+instance (Substitute a, Substitute b) => Substitute (Either a b) where
+  apply s (Left a)  = Left  <$> apply s a
+  apply s (Right b) = Right <$> apply s b
 
 instance FreeVars Typ where
   ftv (TyArr t1 r t2)    = ftv t1 `S.union` ftv r `S.union` ftv t2

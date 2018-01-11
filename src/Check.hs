@@ -201,9 +201,10 @@ generalize env ty = Scheme (S.toList vars) ty
 type Solve m = (MonadError Error m, MonadState State m, MonadWriter Constraints m, MonadIO m) 
 
 unifyT :: Solve m => Subst -> (Typ, Typ) -> m (Subst, Constraints)
+unifyT s (a, b) | a == b = return (s, [])
 unifyT s (TyVar a, b) = (,) <$> extend a (Left b) s <*> return []
 unifyT s (a, TyVar b) = (,) <$> extend b (Left a) s <*> return []
-unifyT s (TyLit a, TyLit b) | a == b = return (s, [])
+-- unifyT s (TyLit a, TyLit b) | a == b = return (s, [])
 unifyT s (TyArr a1 r1 b1,  TyArr a2 r2 b2) = 
   let cs = [ TyConstr a1 a2
            , RoConstr r1 r2
@@ -249,5 +250,6 @@ solve s (c:cs) = do
   (s', cs') <- case c' of
     TyConstr a b -> unifyT s (a, b)
     RoConstr a b -> unifyR s (a, b)
-  solve s' (cs' ++ cs)
+  -- cs'' <- apply s' (cs' ++ cs)
+  solve s' (cs ++ cs')
 solve s [] = return s

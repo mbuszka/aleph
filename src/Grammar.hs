@@ -51,7 +51,7 @@ data Typ
   = TyArr Typ Row Typ
   | TyVar TyVar
   | TyLit TyLit
-  deriving Show
+  deriving (Eq, Ord, Show)
 
 data Row = Row [TyLit] (Maybe TyVar)
-  deriving Show
+  deriving (Eq, Ord, Show)
