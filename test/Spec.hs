@@ -38,6 +38,23 @@ test s = do
   liftIO $ putDocW 80 $ -- pretty cs <> line <> 
                         pretty t <+> "|" <+> pretty e <> line
 
+
+run c = unEither =<< liftIO (evalCheck c)
+
+testTop :: (MonadError Error m, MonadIO m) => Text -> m ()
+testTop s = do
+  t <- parse top s
+  case t of
+    Def id t -> do
+      scheme <- run $ processDef t
+      liftIO $ putDocW 80 $ pretty id <+> ":" <+> pretty scheme <> line
+    Run t -> do
+      (t, e) <-run $ process t
+      liftIO $ putDocW 80 $ pretty t <+> "|" <+> pretty e <> line
+    e@EffDef{} ->do
+      liftIO $ putDocW 80 $ pretty e <> line
+
+
 reportError :: (MonadIO m) => ExceptT Error m a -> m ()
 reportError x = do
   e <- runExceptT x
@@ -62,4 +79,10 @@ main = do
        \ put x, r -> fn s -> (r ()) x; \
        \ get u, r -> fn s -> (r s) s;  \
        \ return x -> fn s -> s;)"
+    ]
+  mapM_ (\s -> reportError (testTop s) >> putStrLn "")
+    [ "let f = fn x -> print x"
+    , "run print 5"
+    , "eff Reader = \
+      \ ask : Unit -> Int;"
     ]

@@ -16,9 +16,13 @@ import           Data.Map (Map)
 
 import Error
 import Grammar
+import Print
 
 data Scheme = Scheme [TyVar] Typ
   deriving Show
+
+instance Pretty Scheme where
+  pretty (Scheme tv t) = "forall" <+> (sep . map pretty $ tv) <> "." <+> pretty t
 
 data Environment = Env
   { _eTypeContext :: Map Ident Scheme
@@ -50,6 +54,9 @@ effects = fmap (\(eff, a, b) ->
 initEnv :: Environment
 initEnv = Env effects operations effToOps
 
+emptyEnv :: Environment
+emptyEnv = Env M.empty M.empty M.empty
+
 lookup :: (MonadReader Environment m, MonadError Error m) => Ident -> m Scheme
 lookup v = do
   ms <- asks (\env -> env ^. eTypeContext . to (M.lookup v))
@@ -73,3 +80,10 @@ lookupEff v = do
 
 inEnv :: (MonadReader Environment m) => Ident -> Scheme -> m a -> m a
 inEnv v s = local (eTypeContext %~ M.insert v s)
+
+extendEnv :: Ident -> Scheme -> Environment -> Environment
+extendEnv id s = eTypeContext %~ M.insert id s
+
+combine :: Environment -> Environment -> Environment
+combine (Env tcs1 ops1 eff1) (Env tcs2 ops2 eff2) = 
+  Env (M.union tcs1 tcs2) (M.union ops1 ops2) (M.union eff1 eff2)

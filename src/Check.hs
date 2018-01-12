@@ -11,7 +11,7 @@ import Control.Monad.Except
 import Control.Monad.State hiding (State)
 import Control.Monad.Reader
 import Control.Monad.Writer hiding ((<>))
-import Control.Monad.RWS(runRWST, RWST(..))
+import Control.Monad.RWS(evalRWST, runRWST, RWST(..))
 import Control.Monad
 import Control.Lens
 
@@ -68,7 +68,42 @@ initState = State 0 emptySubst
 runCheck :: ExceptT Error (RWST Environment Constraints State IO) a -> IO (Either Error a, State, Constraints)
 runCheck c = runRWST (runExceptT c) initEnv initState
 
-process :: (Check m, MonadIO m) => Term -> m (Typ, Row)
+evalCheck :: ExceptT Error (RWST Environment Constraints State IO) a -> IO (Either Error a)
+evalCheck c = fst <$> evalRWST (runExceptT c) initEnv initState
+
+processTop :: (Check m) => Top -> m Environment
+processTop (Def id t) = do
+  scheme <- processDef t
+  extendEnv id scheme <$> ask
+processTop (Run t) = process t >> ask
+processTop (EffDef lbl ops) = processEff lbl ops
+
+processDef :: (Check m) => Term -> m Scheme
+processDef t = do
+  ((typ, env), cs) <- listen $ infer t
+  (typ, cs) <- listen $ do
+    (typ, env) <- infer t
+    constrRow env (Row [] Nothing)
+    return typ
+  s <- gets _sSubst
+  sub <- solve s cs
+  t <- apply sub typ
+  return $ generalize emptyEnv t
+
+processEff :: (Check m) => TyLit -> [OpDef] -> m Environment
+processEff lbl ops = do
+  types <- M.fromList <$> mapM 
+    (\(OpDef i a b) -> do
+      v <- fresh
+      let r = Row [lbl] (Just v)
+      return (i, Scheme [v] $ TyArr a r b)) ops
+  let operations = M.fromList $ map (\(OpDef i a b) -> (i, (lbl, a, b))) ops
+  let effects = M.singleton lbl $ map (\(OpDef i _ _) -> i) ops
+  combine (Env types operations effects) <$> ask
+
+
+
+process :: (Check m) => Term -> m (Typ, Row)
 process t = do
   ((typ, env), cs) <- listen $ infer t
   -- liftIO $ putDocW 80 $ pretty cs <> line
@@ -82,10 +117,6 @@ process t = do
 instantiate :: Check m => Scheme -> m Typ
 instantiate (Scheme vs ty) = do
   newVs <- mapM (\v -> do
-    -- k <- getKind
-    -- var <- case k of
-    --   KTyp -> freshTyp
-    --   KRow  -> freshRow
     var <- freshRow
     return (v, Right var)) vs
   apply (Subst $ M.fromList newVs) ty
@@ -172,10 +203,6 @@ inferHandler hLbl (resT, contT, resE) (Ret val exp) = do
   constrRow env resE
   constrTyp ty contT
   return (Nothing, ty)
-  
-
--- -- TODO We probably should pass type of handled expression,
--- -- to construct type of continuation.
 
 inferHandlers :: Check m => TyLit -> (Typ, Row) -> [Handler] -> m (Typ, Row)
 inferHandlers lbl (resT, resE) hs = do

@@ -7,6 +7,7 @@ module Print
   , putDocW
   , (<+>)
   , line
+  , sep
   , (<>)
   ) where
 
@@ -44,6 +45,14 @@ instance Pretty Handler where
 
 instance Pretty Term where
   pretty = prettyTerm 0
+
+instance Pretty Top where
+  pretty (Def id t)     = "let" <+> pretty id <+> "=" <+> (nest 2 $ pretty t)
+  pretty (Run t)        = "run" <+> (align $ pretty t)
+  pretty (EffDef l ops) = "eff" <+> pretty l <+> "=" <> line <> indent 2 (vsep $ map pretty ops)
+
+instance Pretty OpDef where
+  pretty (OpDef i a b) = pretty i <+> ":" <+> pretty a <+> "->" <+> pretty b
 
 priority :: Int -> Int -> Doc ann -> Doc ann
 priority x y = if x <= y then id else parens 
