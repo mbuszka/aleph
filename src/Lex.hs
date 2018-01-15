@@ -11,6 +11,7 @@ module Lex
   , tyLit
   , tyVar
   , val
+  , whitespace
   ) where
 
 import           Control.Applicative
@@ -57,6 +58,8 @@ reservedTokens = S.fromList
   , "with"
   , "return"
   ]
+
+whitespace = P.whiteSpace lexer
 
 isReserved txt = S.member txt reservedTokens
 

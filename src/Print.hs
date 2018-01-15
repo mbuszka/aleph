@@ -4,10 +4,12 @@
 
 module Print 
   ( Pretty(..)
+  , align
   , putDocW
   , (<+>)
   , line
   , sep
+  , vsep
   , (<>)
   ) where
 

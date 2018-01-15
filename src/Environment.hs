@@ -30,6 +30,12 @@ data Environment = Env
   , _eEffects     :: Map TyLit [Ident]
   } deriving (Show)
 
+instance Pretty Environment where
+  pretty (Env tc ops eff) = "Environment:" <> line 
+                         <> (align $ vsep 
+                              (map (\(k, s) -> pretty k <+> ":" <+> pretty s) $ M.assocs tc))
+                         <> line
+
 makeLenses ''Environment
 
 operations :: Map Ident (TyLit, Typ, Typ)

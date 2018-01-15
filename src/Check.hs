@@ -78,6 +78,12 @@ processTop (Def id t) = do
 processTop (Run t) = process t >> ask
 processTop (EffDef lbl ops) = processEff lbl ops
 
+processProgram :: (Check m) => [Top] -> m Environment
+processProgram [] = ask
+processProgram (t:ts) = do
+  e <- processTop t
+  local (\_ -> e) $ processProgram ts
+
 processDef :: (Check m) => Term -> m Scheme
 processDef t = do
   ((typ, env), cs) <- listen $ infer t
@@ -184,8 +190,9 @@ infer (Handle lbl t hs) = do
 infer (Lift lbl t) = do
   fr <- fresh
   (ty, eff) <- infer t
-  constrRow (Row [lbl] (Just fr)) eff
-  return (ty, eff)
+  let r = Row [lbl] $ Just fr
+  constrRow (Row [] $ Just fr) eff
+  return (ty, r)
 
 inferHandler :: Check m => TyLit -> (Typ, Typ, Row) -> Handler -> m (Maybe Ident, Typ)
 inferHandler hLbl (resT, contT, resE) (Op id arg cont exp) = do

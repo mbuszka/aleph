@@ -24,6 +24,8 @@ parse p s = case P.parse p "" s of
   Left err -> throw $ ParseError (show err)
   Right x  -> return x
 
+program = whitespace *> (P.many top)
+
 top =  Def <$> (res "let" >> ident) <*> (resOp "=" >> term)
    <|> Run <$> (res "run" >> term)
    <|> EffDef <$> (res "eff" >> tyLit) <*> (resOp "=" >> opDefs)
@@ -34,7 +36,7 @@ term =  Let    <$> (res "let" *> ident) <*> (resOp "=" *>  term) <*> (res "in" *
     <|> Abs    <$> (res "fn"  *> ident) <*> (resOp "->" *> term)
     <|> Handle <$> (res "handle" *> tyLit) <*> (res "in" *> term) <*> (res "with" *> handlers)
     <|> Lift   <$> (res "lift"   *> tyLit) <*> (res "in" *> term2)
-    <|> (P.try $ Bind   <$> (ident <* resOp "<-") <*> term <*> (resOp "," *> term))
+    <|> Bind   <$> (P.try (ident <* resOp "<-")) <*> term <*> (resOp "," *> term)
     <|> term1
 
 term1 =  foldl1 App <$> P.many1 term2
