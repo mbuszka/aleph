@@ -249,6 +249,9 @@ unifyT s (TyArr a1 r1 b1,  TyArr a2 r2 b2) =
     return (s, cs)
 unifyT s (t1, t2) = throw $ UnificationError $ pretty t1 <+> "and" <+> pretty t2
 
+
+-- TODO Add occurs check
+
 unifyR :: Solve m => Subst -> (Row, Row) -> m (Subst, Constraints)
 unifyR s (r1@(Row l1 v1), r2@(Row l2 v2)) = let
   extraInL1 = l1 \\ l2

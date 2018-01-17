@@ -1,5 +1,20 @@
-def id: forall 'a. () -> 'a () = fun 'a. fun x: (). x
+eff RD =
+  ask : Unit -> Int;
 
-def f: forall 'a. Int -> 'a Int = fun 'a. fun x: Int. x
+let h = fn comp -> fn r -> 
+  (handle RD in comp () with
+    ask u, k -> k r;
+    return x -> x;)
 
-run let u1 = id in 42
+let x = h (fn u ->
+  a <- ask (),
+  a) 7
+
+let y = h (fn u ->
+  a <- h (fn u -> lift RD in (ask ())) 5,
+  b <- ask (),
+  a) 6
+
+let z = fn u -> lift RD in (ask ())
+
+let v = h (fn u -> lift RD in (ask ()))

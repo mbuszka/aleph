@@ -3,40 +3,27 @@ An experimental language with algebraic effects
 
 ### Grammar
 
-    toplevel ::= def <identifier> { : <type> } = <value>
-               | <fixity> int
+    toplevel ::= let <identifier> = <value>
                | run <expression>
+               | eff <type-lit> = <operations>
+
+    operations ::= { <identifier> : type-lit -> type-lit ; }+
     
-    type ::= type-lit | <type> -> <row> <type>
+    type-lit ::= Unit | Int
 
-    type-lit ::= () | int | string | bool
-
-    row ::= '<' <row-contents> '>'
-          | row-var
-
-    row-var ::= <identifier>
-
-    row-label ::= <identifier>
-
-    row-contents ::= <empty>
-                   | <row-label>
-                   | <row-label> '|' row-contents
-
-    fixity ::= infix{l|r} <identifier> int
-             | {pre|post}fix <identifier> int
-
-    value ::= fun <identifier> => <expression>
+    value ::= fn <identifier> -> <expression>
             | <literal>
             | <variable>
     
-    literal ::= "string" | int | true | false | ()
+    literal ::= int | ()
 
     variable ::= <identifier>
 
     expression ::= <expression> <expressiom>
                  | <variable>
                  | <value>
-                 | handle <expression> with {<handlers>}*
+                 | handle <type-lit> in <expression> with {<handlers>}*
+                 | lift <type-lit> in ( expression )
     
-    handlers ::= { | <identifier> <identifier> <identifier> => expression }*
-               | { | return <identifier> => expression }?
+    handlers ::= { <identifier> <identifier> , <identifier> -> expression ;}*
+               | { return <identifier> -> expression ; }

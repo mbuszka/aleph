@@ -1,7 +1,5 @@
-Fix pretty printing of types
-Add pretty printing of terms
-Add syntax and parsing for lifting and handling of effects
-Finish constraint generation and let polymorphism
+Add subsumption on types (simple one)
+Implement interpreter
 Define built in effects
 Add polymorphim of types, not only effects
 CLEAN UP

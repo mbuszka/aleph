@@ -6,8 +6,9 @@
 import           System.IO
 import qualified System.IO.Strict as S
 
-import qualified Data.Map  as M
-import qualified Data.Text as T
+import qualified Data.Map     as M
+import qualified Data.Text    as T
+import qualified Data.Text.IO as TIO
 import           Data.Text(Text)
 import           Data.Text.Prettyprint.Doc
 
@@ -39,6 +40,13 @@ test s = do
                         pretty t <+> "|" <+> pretty e <> line
 
 
+testFile :: (MonadError Error m, MonadIO m) => FilePath -> m ()
+testFile f = do
+  t <- liftIO $ TIO.readFile f
+  p <- parse program t
+  e <- run $ processProgram p
+  liftIO $ putDocW 80 $ pretty e
+
 run c = unEither =<< liftIO (evalCheck c)
 
 testTop :: (MonadError Error m, MonadIO m) => Text -> m ()
@@ -51,9 +59,8 @@ testTop s = do
     Run t -> do
       (t, e) <-run $ process t
       liftIO $ putDocW 80 $ pretty t <+> "|" <+> pretty e <> line
-    e@EffDef{} ->do
+    e@EffDef{} ->
       liftIO $ putDocW 80 $ pretty e <> line
-
 
 reportError :: (MonadIO m) => ExceptT Error m a -> m ()
 reportError x = do
@@ -85,4 +92,7 @@ main = do
     , "run print 5"
     , "eff Reader = \
       \ ask : Unit -> Int;"
+    ]
+  mapM_ (\s -> reportError (testFile s) >> putStrLn "")
+    [ "/home/mbuszka/university/aleph/test/test-1.al"
     ]

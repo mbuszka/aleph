@@ -30,7 +30,9 @@ top =  Def <$> (res "let" >> ident) <*> (resOp "=" >> term)
    <|> Run <$> (res "run" >> term)
    <|> EffDef <$> (res "eff" >> tyLit) <*> (resOp "=" >> opDefs)
 
-opDefs = P.endBy (OpDef <$> ident <*> (resOp ":" >> typ) <*> (resOp "->" >> typ)) (resOp ";")
+opDefs = P.endBy 
+  (OpDef <$> ident <*> (resOp ":" >> (TyLit <$> tyLit)) <*> (resOp "->" >> (TyLit <$> tyLit)))
+  (resOp ";")
 
 term =  Let    <$> (res "let" *> ident) <*> (resOp "=" *>  term) <*> (res "in" *> term)
     <|> Abs    <$> (res "fn"  *> ident) <*> (resOp "->" *> term)
@@ -53,6 +55,7 @@ typ =  (P.try $ TyArr <$> typ1 <*> (resOp "->" *> row) <*> typ)
    <|> typ1
 
 typ1 = TyLit <$> tyLit
+   <|> parens typ
 
 row =  Row [] . Just <$> tyVar
    <|> Row <$> (str "[" *> P.many tyLit) <*> (optional (str "|" *> tyVar) <* str "]")
