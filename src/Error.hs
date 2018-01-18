@@ -10,17 +10,18 @@ import           Control.Monad.Except
 
 import           Data.Text.Prettyprint.Doc
 
-import Grammar
+import Syntax.Grammar
 import Print
 
 data Error
   = ParseError String
-  | UnboundVariable String
+  | UnboundVariable Ident
   | UnknownOperation Ident
   | UnknownEffect TyLit
   | TypeError (forall a. Doc a)
   | KindError (forall a. Doc a)
   | UnificationError (forall a. Doc a)
+  | RuntimeError (forall a. Doc a)
 
 instance Pretty Error where
   pretty (ParseError s) = "Parse error:" <+> pretty s
@@ -30,6 +31,7 @@ instance Pretty Error where
   pretty (TypeError s) = "Type error:" <+> s
   pretty (KindError s) = "Kind error" <+> s
   pretty (UnificationError s) = "Unification error:" <+> s
+  pretty (RuntimeError s) = "Runtime error:" <+> s
 
 throw :: MonadError Error m => Error -> m a
 throw = throwError

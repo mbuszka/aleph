@@ -5,7 +5,7 @@
   , OverloadedStrings
 #-}
 
-module Check where
+module Inference.Infer where
 
 import Control.Monad.Except
 import Control.Monad.State hiding (State)
@@ -26,10 +26,11 @@ import qualified Data.Text.Prettyprint.Doc as P
 
 import Prelude hiding (lookup)
 
-import Environment
+import Inference.Environment
+import Inference.Subst
+import Syntax.Grammar
+
 import Error
-import Grammar
-import Subst
 import Print
 
 

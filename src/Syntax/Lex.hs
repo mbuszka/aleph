@@ -2,7 +2,7 @@
     OverloadedStrings
 #-}
 
-module Lex 
+module Syntax.Lex 
   ( ident
   , parens
   , res
@@ -27,7 +27,7 @@ import qualified Text.Parsec       as P
 import qualified Text.Parsec.Token as P
 import qualified Text.Parsec.Char  as P
 
-import Grammar
+import Syntax.Grammar
 
 lexer :: P.GenTokenParser Text () Identity
 lexer = P.makeTokenParser $ P.LanguageDef

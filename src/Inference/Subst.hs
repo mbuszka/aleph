@@ -4,7 +4,7 @@
   , OverloadedStrings
 #-}
 
-module Subst 
+module Inference.Subst 
   ( Subst(..)
   , Substitute(..)
   , FreeVars(..)
@@ -21,9 +21,9 @@ import           Data.Map (Map)
 import qualified Data.Set as S
 import           Data.Set (Set)
 
-import Environment
+import Inference.Environment
 import Error
-import Grammar
+import Syntax.Grammar
 import Print
 
 newtype Subst = Subst { unwrap :: Map TyVar (Either Typ Row) }

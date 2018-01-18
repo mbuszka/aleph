@@ -2,7 +2,7 @@
   FlexibleContexts
 #-}
 
-module Parse where
+module Syntax.Parse where
 
 import Control.Applicative
 import Control.Monad.Except
@@ -14,8 +14,8 @@ import qualified Text.Parsec as P
 import           Text.Parsec(ParsecT)
 
 import Error
-import Grammar
-import Lex
+import Syntax.Grammar
+import Syntax.Lex
 
 type Parser a = ParsecT Text () Identity a
 

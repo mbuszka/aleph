@@ -4,7 +4,7 @@
   , TemplateHaskell
 #-}
 
-module Environment where
+module Inference.Environment where
 
 import Control.Monad.Reader
 import Control.Monad.Except
@@ -15,7 +15,7 @@ import qualified Data.Map as M
 import           Data.Map (Map)
 
 import Error
-import Grammar
+import Syntax.Grammar
 import Print
 
 data Scheme = Scheme [TyVar] Typ
@@ -31,10 +31,11 @@ data Environment = Env
   } deriving (Show)
 
 instance Pretty Environment where
-  pretty (Env tc ops eff) = "Environment:" <> line 
-                         <> (align $ vsep 
-                              (map (\(k, s) -> pretty k <+> ":" <+> pretty s) $ M.assocs tc))
-                         <> line
+  pretty (Env tc ops eff) = 
+    "Environment:" <> line
+    <> align (vsep (map (\(k, s) -> pretty k <+> ":" <+> pretty s) $ M.assocs tc)) <> line
+    <> "Operations:" <> line
+    <> align (vsep (map (\(k, (tl, f, t)) -> pretty k <+> "->" <+> pretty tl) $ M.assocs ops)) <> line
 
 makeLenses ''Environment
 
@@ -47,13 +48,13 @@ operations = M.fromList
   where tl = TyLit . TL
 
 effToOps :: Map TyLit [Ident]
-effToOps = fmap sort . 
+effToOps = fmap sort .
            M.fromListWith (++) .
            map (\(id, l) -> (l, [id])) . M.toList .
            fmap (\(l, _, _) -> l) $ operations
 
 effects :: Map Ident Scheme
-effects = fmap (\(eff, a, b) -> 
+effects = fmap (\(eff, a, b) ->
   let v = TV "'a" in
     Scheme [v] (TyArr a (Row [eff] (Just v)) b)) operations
 
@@ -68,7 +69,7 @@ lookup v = do
   ms <- asks (\env -> env ^. eTypeContext . to (M.lookup v))
   case ms of
     Just t -> return t
-    Nothing -> throwError $ UnboundVariable (show v)
+    Nothing -> throwError $ UnboundVariable v
 
 lookupOp :: (MonadReader Environment m, MonadError Error m) => Ident -> m (TyLit, Typ, Typ)
 lookupOp v = do
@@ -91,5 +92,5 @@ extendEnv :: Ident -> Scheme -> Environment -> Environment
 extendEnv id s = eTypeContext %~ M.insert id s
 
 combine :: Environment -> Environment -> Environment
-combine (Env tcs1 ops1 eff1) (Env tcs2 ops2 eff2) = 
+combine (Env tcs1 ops1 eff1) (Env tcs2 ops2 eff2) =
   Env (M.union tcs1 tcs2) (M.union ops1 ops2) (M.union eff1 eff2)

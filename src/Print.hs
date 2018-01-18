@@ -4,6 +4,7 @@
 
 module Print 
   ( Pretty(..)
+  , Doc
   , align
   , putDocW
   , (<+>)
@@ -19,7 +20,7 @@ import           Data.Text(Text)
 import           Data.Text.Prettyprint.Doc
 import           Data.Text.Prettyprint.Doc.Util(putDocW)
 
-import Grammar
+import Syntax.Grammar
 
 instance Pretty TyVar where
   pretty (TV v) = pretty v

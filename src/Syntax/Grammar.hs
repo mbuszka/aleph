@@ -1,4 +1,4 @@
-module Grammar 
+module Syntax.Grammar 
   ( Top(..)
   , Term(..) 
   , Handler(..)
