@@ -1,6 +1,9 @@
 eff RD =
   ask : Unit -> Int;
 
+eff EX =
+  throw : Int -> Unit;
+
 let f = fn x -> x
 
 run print (f 2)
@@ -15,6 +18,19 @@ let x = h (fn u ->
   a) 7
 
 run print x
+
+run handle EX in 
+  u <- print 5,
+  u <- throw 9,
+  print 42 
+    with
+      throw n, k -> print n;
+      return x -> ();
+
+run handle IO in print 17 with
+  print x, k -> k (print 8);
+  return x   -> x;
+
 {-
 let y = h (fn u ->
   a <- h (fn u -> lift RD in (ask ())) 5,

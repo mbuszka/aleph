@@ -53,6 +53,7 @@ reservedTokens = S.fromList
   [ "let"
   , "run"
   , "in"
+  , "eff"
   , "fn"
   , "handle"
   , "with"

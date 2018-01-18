@@ -99,3 +99,6 @@ lookupHandler lbl id = do
 
 withHandlers :: MonadEval m => TyLit -> Handlers -> m a -> m a
 withHandlers lbl hs = local $ over handlers (M.insertWith (++) lbl [hs])
+
+withoutHandlers :: MonadEval m => TyLit -> m a -> m a
+withoutHandlers l = local $ over handlers (M.adjust tail l)

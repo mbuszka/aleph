@@ -62,8 +62,8 @@ find p (x:xs) = case p x of
   Just y  -> Just y
   Nothing -> find p xs
 
-prepareHandlers :: Env -> Cont -> [Handler] -> (Handlers, Cont)
-prepareHandlers e k hs =
+prepareHandlers :: TyLit -> Env -> Cont -> [Handler] -> (Handlers, Cont)
+prepareHandlers l e k hs =
   let Just (x, t) = 
         find (\case Ret x t -> Just (x, t)
                     _ -> Nothing) hs
@@ -71,7 +71,10 @@ prepareHandlers e k hs =
   in  (Handlers 
         (M.fromList $ foldr (\x acc -> case x of
           Op id a cont t -> 
-            (id, \v k -> eval (Env.extend a v . Env.extend cont (ContVal k) $ e) t k') : acc
+            (id, \v k -> 
+              withoutHandlers l $ eval 
+                (Env.extend a v . Env.extend cont (ContVal k) $ e) t k'
+            ) : acc
           Ret _ _ -> acc) [] hs)
       , k')
 
@@ -95,6 +98,6 @@ eval e t k = case t of
   Bind id e1 e2 ->
     eval e e1 $ Cont $ \v -> eval (Env.extend id v e) e2 k
   Handle lbl exp hs ->
-    let (hs', k') = prepareHandlers e k hs
+    let (hs', k') = prepareHandlers lbl e k hs
     in  withHandlers lbl hs' $ eval e exp k'
 
