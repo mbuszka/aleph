@@ -3,7 +3,7 @@ eff RD =
 
 let f = fn x -> x
 
-run print (f 7)
+run print (f 2)
 
 let h = fn comp -> fn r -> 
   (handle RD in comp () with
@@ -14,6 +14,8 @@ let x = h (fn u ->
   a <- ask (),
   a) 7
 
+run print x
+{-
 let y = h (fn u ->
   a <- h (fn u -> lift RD in (ask ())) 5,
   b <- ask (),
@@ -22,3 +24,4 @@ let y = h (fn u ->
 let z = fn u -> lift RD in (ask ())
 
 let v = h (fn u -> lift RD in (ask ()))
+-}

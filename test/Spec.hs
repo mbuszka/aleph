@@ -49,7 +49,7 @@ testFile f = do
   e <- run $ processProgram p
   liftIO $ putDocW 80 $ pretty e
   let ops = fmap (\(l, _, _) -> l) $ _eOperations e
-  ((), res) <- runEval (initialEnv ops) (evalProgram p)
+  ((), res) <- runEval (initialCtx ops) (evalProgram p)
   liftIO $ putDocW 80 $ pretty res
   return ()
 

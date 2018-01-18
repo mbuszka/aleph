@@ -24,61 +24,13 @@ import qualified Data.Text as T
 import           Data.Text(Text)
 
 import Error
-import Syntax.Grammar as Grammar hiding (Val) 
+import Syntax.Grammar as Grammar hiding (Val)
+import Evaluation.Types
+import Evaluation.Env as Env
 import Print
 
-data Handlers = Handlers
-  { _operations :: forall m. EvalMonad m => Map Ident (ExpVal -> Cont -> m ExpVal)
-  -- , _returnOp   :: (Ident, Term)
-  -- , _hCont      :: Cont
-  }
-
-instance Pretty Handlers where
-  pretty (Handlers ops) = "handlers..."
-
-data Environment = Env
-  { _values   :: Map Ident ExpVal
-  , _handlers :: Map TyLit [Handlers]
-  , _effects  :: Map Ident TyLit
-  }
-
-instance (Pretty k, Pretty v) => Pretty (Map k v) where
-  pretty m = align (vsep (map (\(k, v) -> pretty k <+> "->" <+> pretty v) $ M.assocs m))
-
-instance Pretty Environment where
-  pretty (Env vs hs eff) = "Runtime environment:" <> line
-    <> "Values:" <+> pretty vs <> line
-    <> "Handlers:" <+> pretty hs <> line
-    <> "Effects:" <+> pretty eff <> line
-
-type EvalMonad m =
-  ( MonadReader Environment m
-  , MonadWriter [ExpVal] m
-  , MonadError  Error m
-  , MonadIO m
-  )
-
-newtype Cont = Cont { apply :: forall m. (EvalMonad m) => ExpVal -> m ExpVal }
-
-data ExpVal
-  = IntVal Integer
-  | UnitVal
-  | ContVal Cont
-  | FunVal (forall m. EvalMonad m => ExpVal -> Cont -> m ExpVal)
-  | OpVal Ident TyLit
-
-instance Pretty ExpVal where
-  pretty (IntVal i)  = pretty i
-  pretty UnitVal     = "()"
-  pretty (ContVal c) = "continuation"
-  pretty (FunVal  f) = "function"
-  pretty (OpVal i l) = "operator:" <> pretty i <+> pretty l
-
-makeLenses ''Environment
-makeLenses ''Handlers
-
 runEval :: (MonadError Error m, MonadIO m) 
-  => Environment -> ReaderT Environment (WriterT [ExpVal] m) a -> m (a, [ExpVal])
+  => Ctx -> ReaderT Ctx (WriterT [ExpVal] m) a -> m (a, [ExpVal])
 runEval e c = runWriterT (runReaderT c e)
 
 defaultHandlers :: Map TyLit [Handlers]
@@ -89,99 +41,60 @@ defaultHandlers = M.fromList
         ])])
   ]
 
-initialEnv :: Map Ident TyLit -> Environment
-initialEnv = Env M.empty defaultHandlers 
+initialCtx :: Map Ident TyLit -> Ctx
+initialCtx = Ctx defaultHandlers
 
-evalProgram :: EvalMonad m => [Top] -> m ()
-evalProgram (Def x t : ts) = do
-  v <- eval t finalCont
-  local (extendEnv x v) (evalProgram ts)
-evalProgram (Run t : ts) = eval t finalCont >> evalProgram ts
-evalProgram (EffDef{} : ts) = evalProgram ts
-evalProgram [] = return ()
+evalProgram :: (MonadEval m) => [Top] -> m ()
+evalProgram = evalP Env.empty
+
+evalP :: MonadEval m => Env -> [Top] -> m ()
+evalP e (Def x t : ts) = do
+  v <- eval e t finalCont
+  evalP (Env.extend x v e) ts
+evalP e (Run t : ts) = eval e t finalCont >> evalP e ts
+evalP e (EffDef{} : ts) = evalP e ts
+evalP _ [] = return ()
 
 finalCont :: Cont
 finalCont = Cont $ \v -> return v
-
-lookupEnv :: EvalMonad m => Ident -> m ExpVal
-lookupEnv v = do
-  mv <- asks (\e -> e ^. values . to (M.lookup v))
-  case mv of
-    Just val -> return val
-    Nothing  -> do
-      mo <- asks (\e -> e ^. effects . at v)
-      case mo of
-        Just lbl -> return $ OpVal v lbl
-        Nothing  ->  abort $ "Unbound variable:" <+> pretty v
-
-extendEnv :: Ident -> ExpVal -> Environment -> Environment
-extendEnv x v = over values (M.insert x v)
-
-withHandlers :: EvalMonad m => TyLit -> Handlers -> m a -> m a
-withHandlers lbl hs = local $ over handlers (M.insertWith (++) lbl [hs])
 
 find p (x:xs) = case p x of
   Just y  -> Just y
   Nothing -> find p xs
 
-prepareHandlers :: Cont -> [Handler] -> (Handlers, Cont)
-prepareHandlers k hs =
+prepareHandlers :: Env -> Cont -> [Handler] -> (Handlers, Cont)
+prepareHandlers e k hs =
   let Just (x, t) = 
         find (\case Ret x t -> Just (x, t)
                     _ -> Nothing) hs
-      k' = Cont (\v -> local (extendEnv x v) $ eval t k)
+      k' = Cont (\v -> eval (Env.extend x v e) t k)
   in  (Handlers 
         (M.fromList $ foldr (\x acc -> case x of
           Op id a cont t -> 
-            (id, \v k -> local (extendEnv a v . extendEnv cont (ContVal k)) $ eval t k') : acc
+            (id, \v k -> eval (Env.extend a v . Env.extend cont (ContVal k) $ e) t k') : acc
           Ret _ _ -> acc) [] hs)
       , k')
 
-eval :: EvalMonad m => Term -> Cont -> m ExpVal
-eval t k = case t of
-  Var v -> lookupEnv v >>= apply k
+eval :: MonadEval m => Env -> Term -> Cont -> m ExpVal
+eval e t k = case t of
+  Var v -> Env.lookup v e >>= apply k
   Lit v -> case v of
     Grammar.VInt i -> apply k $ IntVal i
     Grammar.VUnit  -> apply k UnitVal
-  Abs id exp -> do
-    vs <- asks _values
-    apply k $ FunVal (\v k ->
-      -- liftIO $ putDocW 80 $ "Extending env with:" <+> pretty id <+> "->" <+> pretty v <> line
-      local (set values (M.insert id v vs)) $ do
-        vals <- asks _values
-        liftIO $ putDocW 80 $ "Values:" <+> pretty vals <> line
-        eval exp k)
+  Abs id exp -> apply k $ FunVal (\v k -> eval (Env.extend id v e) exp k)
   App fun exp ->
-    eval fun $ Cont $ \case 
-      FunVal f   -> eval exp $ Cont (`f` k)
-      OpVal id _ -> eval exp $ Cont (\v -> applyHandler id v k)
-      ContVal k  -> eval exp k
+    eval e fun $ Cont $ \case 
+      FunVal f   -> eval e exp $ Cont (`f` k)
+      OpVal id l -> eval e exp $ Cont (\v -> do
+        h <- lookupHandler l id
+        h v k)
+      ContVal k  -> eval e exp k
       v -> abort $ "Unexpected value:" <+> pretty v <+> "function required."
   Let id body exp ->
-    eval body $ Cont $ \v ->
-      local (extendEnv id v) $ eval exp k
+    eval e body $ Cont $ \v -> eval (Env.extend id v e) exp k
   Bind id e1 e2 ->
-    eval e1 $ Cont $ \v ->
-      local (extendEnv id v) $ eval e2 k
+    eval e e1 $ Cont $ \v -> eval (Env.extend id v e) e2 k
   Handle lbl exp hs ->
-    let (hs', k') = prepareHandlers k hs
-    in  withHandlers lbl hs' $ eval exp k'
-
-getErr :: (EvalMonad m, Pretty k, Ord k) => k -> Map k a -> m a
-getErr k m = case M.lookup k m of
-  Just v  -> return v
-  Nothing -> abort $ "Could not find" <+> pretty k
-
-abort :: (EvalMonad m) => (forall a. Doc a) -> m b
-abort msg = do
-  e <- ask
-  throw $ RuntimeError $ msg <> line <> pretty e
-
-applyHandler :: EvalMonad m => Ident -> ExpVal -> Cont -> m ExpVal
-applyHandler id v k = do
-  e <- ask
-  lbl <- e ^. effects . to (getErr id)
-  hs  <- e ^. handlers . to (getErr lbl)
-  let h = head hs ^. operations . to (M.! id)
-  h v k
+    let (hs', k') = prepareHandlers e k hs
+    in  withHandlers lbl hs' $ eval e exp k'
 
