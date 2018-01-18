@@ -1,4 +1,4 @@
-resolver: lts-10.0
+resolver: lts-9.21
 
 packages:
 - .
@@ -6,9 +6,3 @@ packages:
 nix:
   enable: true
   packages: [ ncurses ]
-
-extra-deps:
-- git: git@github.com:mbuszka/BNFC-meta.git
-  commit: 7f5bfa0e2c0b153e09386d48c99d97e299c3bcb4
-- happy-meta-0.2.0.9
-- alex-meta-0.3.0.9
