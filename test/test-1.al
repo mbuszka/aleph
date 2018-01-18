@@ -1,6 +1,10 @@
 eff RD =
   ask : Unit -> Int;
 
+let f = fn x -> x
+
+run print (f 7)
+
 let h = fn comp -> fn r -> 
   (handle RD in comp () with
     ask u, k -> k r;

@@ -19,11 +19,13 @@ import Control.Monad.Except
 
 import Data.Bifunctor
 
-import Check
+import Inference.Infer
 import Error
-import Grammar
-import Parse
+import Syntax.Grammar
+import Syntax.Parse
 import Print
+import Evaluation.Eval
+import Inference.Environment(_eOperations)
 
 unEither :: (MonadError Error m, MonadIO m) => Either Error a -> m a
 unEither x = case x of
@@ -46,6 +48,10 @@ testFile f = do
   p <- parse program t
   e <- run $ processProgram p
   liftIO $ putDocW 80 $ pretty e
+  let ops = fmap (\(l, _, _) -> l) $ _eOperations e
+  ((), res) <- runEval (initialEnv ops) (evalProgram p)
+  liftIO $ putDocW 80 $ pretty res
+  return ()
 
 run c = unEither =<< liftIO (evalCheck c)
 
