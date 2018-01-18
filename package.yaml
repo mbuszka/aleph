@@ -27,6 +27,15 @@ dependencies:
 - text
 - prettyprinter
 
+default-extensions:
+  - ConstraintKinds
+  - FlexibleContexts
+  - GADTs
+  - LambdaCase
+  - OverloadedStrings
+  - RankNTypes
+  - TemplateHaskell
+
 library:
   source-dirs: src
   dependencies:
