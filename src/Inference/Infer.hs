@@ -95,20 +95,18 @@ processDef t = do
   s <- gets _sSubst
   sub <- solve s cs
   t <- apply sub typ
-  return $ generalize emptyEnv t
+  canonicalize $ generalize emptyEnv t
 
 processEff :: (Check m) => TyLit -> [OpDef] -> m Environment
 processEff lbl ops = do
   types <- M.fromList <$> mapM 
     (\(OpDef i a b) -> do
-      v <- fresh
-      let r = Row [lbl] (Just v)
-      return (i, Scheme [v] $ TyArr a r b)) ops
+      -- v <- fresh
+      let r = Row [lbl] (Just (TV "a"))
+      return (i, Scheme [TV "a"] $ TyArr a r b)) ops
   let operations = M.fromList $ map (\(OpDef i a b) -> (i, (lbl, a, b))) ops
   let effects = M.singleton lbl $ map (\(OpDef i _ _) -> i) ops
   combine (Env types operations effects) <$> ask
-
-
 
 process :: (Check m) => Term -> m (Typ, Row)
 process t = do
@@ -180,7 +178,7 @@ infer (Let v body exp) = do
   modify $ sSubst .~ s'
   constrRow e1 (Row [] Nothing)
   env <- ask
-  let s = generalize env ty1
+  s <- canonicalize $ generalize env ty1
   inEnv v s $ infer exp
 infer (Handle lbl t hs) = do
   (ty1, e1) <- infer t
@@ -234,6 +232,11 @@ generalize env ty = Scheme (S.toList vars) ty
     vars = ftv ty `S.difference` ftv env
 
 type Solve m = (MonadError Error m, MonadState State m, MonadWriter Constraints m, MonadIO m) 
+
+canonicalize :: Check m => Scheme -> m Scheme
+canonicalize (Scheme vs t) = Scheme (take (length vs) idents) <$> apply (Subst $ M.fromList $ zip vs rows) t
+  where idents = map (TV . T.pack . (:[])) ['a' .. 'z']
+        rows   = map (Right . Row [] . Just) idents
 
 unifyT :: Solve m => Subst -> (Typ, Typ) -> m (Subst, Constraints)
 unifyT s (a, b) | a == b = return (s, [])

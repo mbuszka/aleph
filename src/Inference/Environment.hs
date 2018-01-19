@@ -55,7 +55,7 @@ effToOps = fmap sort .
 
 effects :: Map Ident Scheme
 effects = fmap (\(eff, a, b) ->
-  let v = TV "'a" in
+  let v = TV "a" in
     Scheme [v] (TyArr a (Row [eff] (Just v)) b)) operations
 
 initEnv :: Environment
