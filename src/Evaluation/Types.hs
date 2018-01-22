@@ -18,8 +18,10 @@ import Control.Monad.Reader
 import Control.Monad.Writer hiding ((<>))
 import Control.Monad.Except
 
+import qualified Data.List as List
 import qualified Data.Map as M
 import           Data.Map(Map)
+import qualified Data.Maybe as Maybe
 import qualified Data.Text as T
 import           Data.Text(Text)
 
@@ -81,9 +83,11 @@ abort msg = do
   throw $ RuntimeError $ msg <> line <> pretty e
 
 getOrErr :: (MonadEval m, Pretty k, Ord k) => k -> Map k a -> m a
-getOrErr k m = case M.lookup k m of
-  Just v  -> return v
-  Nothing -> abort $ "Could not find" <+> pretty k
+getOrErr k m = fromMaybe ("Could not find" <+> pretty k) $ M.lookup k m
+
+fromMaybe :: (MonadEval m) => (forall b. Doc b) -> Maybe a -> m a
+fromMaybe _ (Just v) = return v
+fromMaybe t  Nothing = abort t
 
 lookupLbl :: (MonadEval m) => Ident -> m TyLit
 lookupLbl x = do
@@ -95,10 +99,11 @@ lookupHandler :: (MonadEval m)
 lookupHandler lbl id = do
   e  <- ask
   hs <- e ^. handlers . to (getOrErr lbl)
-  getOrErr id . operations . head $ hs
+  h <-  fromMaybe ("No handler for:" <+> pretty lbl) $ Maybe.listToMaybe hs
+  getOrErr id $ operations h
 
 withHandlers :: MonadEval m => TyLit -> Handlers -> m a -> m a
 withHandlers lbl hs = local $ over handlers (M.insertWith (++) lbl [hs])
 
 withoutHandlers :: MonadEval m => TyLit -> m a -> m a
-withoutHandlers l = local $ over handlers (M.adjust tail l)
+withoutHandlers l = local $ over handlers (M.adjust (drop 1) l)

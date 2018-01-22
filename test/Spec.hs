@@ -98,7 +98,9 @@ main = do
     , "run print 5"
     , "eff Reader = \
       \ ask : Unit -> Int;"
+    , "let z = get ()"
     ]
-  mapM_ (\s -> reportError (testFile s) >> putStrLn "")
-    [ "/home/mbuszka/university/aleph/test/test-1.al"
-    ]
+  mapM_ (\s -> reportError (testFile s) >> putStrLn "") $
+    map ("/home/mbuszka/university/aleph/test/" ++) 
+      [ "test-1.al"
+      ]

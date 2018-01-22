@@ -99,5 +99,13 @@ eval e t k = case t of
     eval e e1 $ Cont $ \v -> eval (Env.extend id v e) e2 k
   Handle lbl exp hs ->
     let (hs', k') = prepareHandlers lbl e k hs
-    in  withHandlers lbl hs' $ eval e exp k'
+    in  do
+      ctx <- ask
+      withHandlers lbl hs' $ eval e exp $ Cont (\v -> local (\_ -> ctx) $ apply k' v)
+  Lift lbl exp -> do
+    ctx <- ask
+    let hs = _handlers ctx
+    -- liftIO $ putDocW 80 $ "lifting" <+> pretty lbl <+> "with handlers" <+> pretty hs <> line
+    withoutHandlers lbl $ eval e exp $ Cont (\v -> local (\_ -> ctx) $ apply k v)
+
 

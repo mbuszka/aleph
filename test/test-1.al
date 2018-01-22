@@ -31,13 +31,16 @@ run handle IO in print 17 with
   print x, k -> k (print 8);
   return x   -> x;
 
-{-
 let y = h (fn u ->
   a <- h (fn u -> lift RD in (ask ())) 5,
   b <- ask (),
   a) 6
 
+run print y
+
 let z = fn u -> lift RD in (ask ())
 
 let v = h (fn u -> lift RD in (ask ()))
--}
+
+let z = h (fn u -> v 3) 4
+

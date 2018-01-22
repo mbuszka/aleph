@@ -92,8 +92,10 @@ processDef t = do
     (typ, env) <- infer t
     constrRow env (Row [] Nothing)
     return typ
+  -- liftIO $ putDocW 80 $ pretty cs <> line
   s <- gets _sSubst
   sub <- solve s cs
+  -- liftIO $ putDocW 80 $ pretty sub <> line
   t <- apply sub typ
   canonicalize $ generalize emptyEnv t
 
@@ -270,8 +272,7 @@ unifyR s (r1@(Row l1 v1), r2@(Row l2 v2)) = let
         if extraInL1 /= []
         then throw $ UnificationError $ pretty r1 <+> "and" <+> pretty r2
         else do
-          fr <- fresh
-          s' <- extend a (Right $ Row extraInL2 (Just fr)) s
+          s' <- extend a (Right $ Row extraInL2 Nothing) s
           return $ (s', [])
       
       (Nothing, Just a) ->
