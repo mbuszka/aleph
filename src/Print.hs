@@ -81,6 +81,7 @@ prettyTerm x (Abs id b) =
   priority x 0 $ "fn" <+> pretty id <+> "->" <+> prettyTerm 0 b
 prettyTerm x (Var id) = pretty id
 prettyTerm x (Lit l) = pretty l
+prettyTerm x (Cond c t e) = "if" <+> pretty c <+> "then" <+> pretty t <+> "else" <+> pretty e <+> "end"
 prettyTerm x (Handle tl t hs) =
   priority x 0 $ "handle" <+> pretty tl <+> "in" <+> prettyTerm 0 t <+> "with" 
                           <+> align (vsep $ punctuate ";" $ map pretty hs)

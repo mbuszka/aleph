@@ -38,6 +38,7 @@ term =  Let    <$> (res "let" *> ident) <*> (resOp "=" *>  term) <*> (res "in" *
     <|> Abs    <$> (res "fn"  *> ident) <*> (resOp "->" *> term)
     <|> Handle <$> (res "handle" *> tyLit) <*> (res "in" *> term) <*> (res "with" *> handlers)
     <|> Lift   <$> (res "lift"   *> tyLit) <*> (res "in" *> term2)
+    <|> Cond   <$> (res "if" *> term) <*> (res "then" *> term) <*> (res "else" *> term <* res "end")
     <|> Bind   <$> (P.try (ident <* resOp "<-")) <*> term <*> (resOp "," *> term)
     <|> term1
 

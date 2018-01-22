@@ -30,6 +30,7 @@ data Term
   = App Term Term
   | Let Ident Term Term
   | Abs Ident Term
+  | Cond Term Term Term
   | Var Ident
   | Lit Val
   | Handle TyLit Term [Handler]
@@ -44,6 +45,7 @@ data Handler
 
 data Val
   = VInt Integer
+  | VBool Bool
   | VUnit
   deriving Show
 

@@ -55,9 +55,15 @@ reservedTokens = S.fromList
   , "in"
   , "eff"
   , "fn"
+  , "if"
+  , "then"
+  , "else"
+  , "end"
   , "handle"
   , "with"
   , "return"
+  , "true"
+  , "false"
   ]
 
 whitespace = P.whiteSpace lexer
@@ -74,6 +80,8 @@ str s = lexeme $ P.string s
 
 val =  VInt <$> P.integer lexer
    <|> pure VUnit <* P.try (str "()")
+   <|> (VBool True <$ res "true")
+   <|> (VBool False <$ res "false")
 
 tyVar = lexeme $ P.try $ do
   t <- (do

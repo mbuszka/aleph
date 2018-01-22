@@ -58,8 +58,24 @@ effects = fmap (\(eff, a, b) ->
   let v = TV "a" in
     Scheme [v] (TyArr a (Row [eff] (Just v)) b)) operations
 
+prims :: Map Ident Scheme
+prims = M.fromList
+  [ (ID "add", iii)
+  , (ID "sub", iii)
+  , (ID "mul", iii)
+  , (ID "div", iii)
+  , (ID "isZero", ib)
+  , (ID "nil", Scheme [] list)
+  , (ID "cons", Scheme [TV "a"] $ TyArr int (row "a") list)
+  ] where
+      int = TyLit $ TL "Int"
+      list = TyLit $ TL "List"
+      row = Row [] . Just . TV
+      iii = Scheme [TV "a", TV "b"] $ TyArr int (row "a") (TyArr int (row "b") int)
+      ib  = Scheme [TV "a"] $ TyArr int (row "a") (TyLit $ TL "Bool")
+
 initEnv :: Environment
-initEnv = Env effects operations effToOps
+initEnv = Env (M.union effects prims) operations effToOps
 
 emptyEnv :: Environment
 emptyEnv = Env M.empty M.empty M.empty

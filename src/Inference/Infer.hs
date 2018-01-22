@@ -154,6 +154,7 @@ infer (Var v)       = (,) <$> lookupEnv v <*> freshRow
 -- infer (Lit VBool{}) = (,) (TyLit "Bool")  <$> freshTyp
 infer (Lit VInt{})  = (,) (TyLit $ TL "Int")  <$> freshRow
 infer (Lit VUnit{}) = (,) (TyLit $ TL "Unit") <$> freshRow
+infer (Lit VBool{}) = (,) (TyLit $ TL "Bool") <$> freshRow
 infer (Abs v term) = do
   tv <- freshTyp
   (ty, row) <- inEnv v (Scheme [] tv) $ infer term
@@ -168,6 +169,15 @@ infer (App t1 t2) = do
   constrRow e1 e2
   constrRow tr e1
   return (tv, tr)
+infer (Cond c t e) = do
+  (t1, e1) <- infer c
+  constrTyp t1 (TyLit $ TL "Bool")
+  (t2, e2) <- infer t
+  (t3, e3) <- infer e
+  constrRow e1 e2
+  constrRow e2 e3
+  constrTyp t2 t3
+  return (t3, e3)
 infer (Bind v t1 t2) = do
   (ty1, e1) <- infer t1
   (ty2, e2) <- inEnv v (Scheme [] ty1) $ infer t2

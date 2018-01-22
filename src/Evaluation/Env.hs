@@ -5,7 +5,7 @@ import Control.Monad.Reader
 
 import Data.Map as Map
 
-import Syntax.Grammar(Ident)
+import Syntax.Grammar(Ident(..))
 import Evaluation.Types
 import Print
 
@@ -25,3 +25,30 @@ extend id v = Env . Map.insert id v . unEnv
 
 empty :: Env
 empty = Env Map.empty
+
+init :: Env
+init = Env $ Map.fromList
+  [ (ID "add", 
+    FunVal $ 
+      \case (IntVal a) -> \k -> apply k $ 
+              FunVal (\case (IntVal b) -> \k -> apply k $ IntVal (a + b)))
+  , (ID "sub", 
+    FunVal $ 
+      \case (IntVal a) -> \k -> apply k $ 
+              FunVal (\case (IntVal b) -> \k -> apply k $ IntVal (a - b)))
+  , (ID "mul", 
+    FunVal $ 
+      \case (IntVal a) -> \k -> apply k $ 
+              FunVal (\case (IntVal b) -> \k -> apply k $ IntVal (a * b)))
+  , (ID "div", 
+    FunVal $ 
+      \case (IntVal a) -> \k -> apply k $ 
+              FunVal (\case (IntVal b) -> \k -> apply k $ IntVal (a `div` b)))
+  , (ID "isZero",
+    FunVal $
+      \case (IntVal a) -> \k -> apply k $ BoolVal (a == 0))
+  , (ID "nil", ListVal [])
+  , (ID "cons", FunVal $ 
+      \case (IntVal a) -> \k -> apply k $ 
+              FunVal (\case (ListVal b) -> \k -> apply k $ ListVal (a : b)))
+  ]

@@ -45,7 +45,7 @@ initialCtx :: Map Ident TyLit -> Ctx
 initialCtx = Ctx defaultHandlers
 
 evalProgram :: (MonadEval m) => [Top] -> m ()
-evalProgram = evalP Env.empty
+evalProgram = evalP Env.init
 
 evalP :: MonadEval m => Env -> [Top] -> m ()
 evalP e (Def x t : ts) = do
@@ -82,8 +82,9 @@ eval :: MonadEval m => Env -> Term -> Cont -> m ExpVal
 eval e t k = case t of
   Var v -> Env.lookup v e >>= apply k
   Lit v -> case v of
-    Grammar.VInt i -> apply k $ IntVal i
-    Grammar.VUnit  -> apply k UnitVal
+    Grammar.VInt i  -> apply k $ IntVal i
+    Grammar.VUnit   -> apply k UnitVal
+    Grammar.VBool b -> apply k $ BoolVal b
   Abs id exp -> apply k $ FunVal (\v k -> eval (Env.extend id v e) exp k)
   App fun exp ->
     eval e fun $ Cont $ \case 
@@ -95,6 +96,8 @@ eval e t k = case t of
       v -> abort $ "Unexpected value:" <+> pretty v <+> "function required."
   Let id body exp ->
     eval e body $ Cont $ \v -> eval (Env.extend id v e) exp k
+  Cond c t1 t2 ->
+    eval e c $ Cont $ \case BoolVal b -> if b then eval e t1 k else eval e t2 k
   Bind id e1 e2 ->
     eval e e1 $ Cont $ \v -> eval (Env.extend id v e) e2 k
   Handle lbl exp hs ->

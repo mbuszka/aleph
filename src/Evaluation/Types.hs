@@ -62,6 +62,8 @@ newtype Cont = Cont { apply :: forall m. (MonadEval m) => ExpVal -> m ExpVal }
 
 data ExpVal
   = IntVal Integer
+  | BoolVal Bool
+  | ListVal [Integer]
   | UnitVal
   | ContVal Cont
   | FunVal (forall m. MonadEval m => ExpVal -> Cont -> m ExpVal)
@@ -69,6 +71,8 @@ data ExpVal
 
 instance Pretty ExpVal where
   pretty (IntVal i)  = pretty i
+  pretty (BoolVal True) = "true"
+  pretty (BoolVal False) = "false"
   pretty UnitVal     = "()"
   pretty (ContVal c) = "continuation"
   pretty (FunVal  f) = "function"

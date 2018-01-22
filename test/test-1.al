@@ -44,3 +44,8 @@ let v = h (fn u -> lift RD in (ask ()))
 
 let z = h (fn u -> v 3) 4
 
+run if false then print 17 else print 14 end
+
+run print (add 3 4)
+
+run if isZero (sub 3 4) then print 0 else print 1 end
