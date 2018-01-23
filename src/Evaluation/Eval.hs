@@ -75,8 +75,11 @@ prepareHandlers env ctx exitK hs =
         (M.fromList $ foldr (\x acc -> case x of
           Op id a cont t -> 
             (id, \v k -> let
-              env' = Env.extend a v . Env.extend cont (ContVal k) $ env
-              in eval env' ctx t exitK
+              k'   = ContVal k
+              env' = Env.extend a v . Env.extend cont k' $ env
+              in do
+                liftIO $ putDocW 80 $ "op trace:" <+> pretty id <+> pretty v <> line
+                eval env' ctx t exitK
             ) : acc
           Ret _ _ -> acc) [] hs)
       , returnK)

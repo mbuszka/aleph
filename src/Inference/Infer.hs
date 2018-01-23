@@ -66,11 +66,13 @@ type Check m =
 
 initState = State 0 emptySubst
 
-runCheck :: ExceptT Error (RWST Environment Constraints State IO) a -> IO (Either Error a, State, Constraints)
-runCheck c = runRWST (runExceptT c) initEnv initState
+runCheck :: (MonadError Error m, MonadIO m)
+         => (RWST Environment Constraints State m) a -> m (a, State, Constraints)
+runCheck c = runRWST c initEnv initState
 
-evalCheck :: ExceptT Error (RWST Environment Constraints State IO) a -> IO (Either Error a)
-evalCheck c = fst <$> evalRWST (runExceptT c) initEnv initState
+evalCheck :: (MonadError Error m, MonadIO m)
+          => (RWST Environment Constraints State m) a -> m a
+evalCheck c = fst <$> evalRWST c initEnv initState
 
 processTop :: (Check m) => Top -> m Environment
 processTop (Def id t) = do
@@ -151,7 +153,6 @@ constrRow a b = tell [RoConstr a b]
 
 infer :: Check m => Term -> m (Typ, Row)
 infer (Var v)       = (,) <$> lookupEnv v <*> freshRow
--- infer (Lit VBool{}) = (,) (TyLit "Bool")  <$> freshTyp
 infer (Lit VInt{})  = (,) (TyLit $ TL "Int")  <$> freshRow
 infer (Lit VUnit{}) = (,) (TyLit $ TL "Unit") <$> freshRow
 infer (Lit VBool{}) = (,) (TyLit $ TL "Bool") <$> freshRow
