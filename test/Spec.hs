@@ -49,7 +49,7 @@ testFile f = do
   e <- run $ processProgram p
   liftIO $ putDocW 80 $ pretty e
   let ops = fmap (\(l, _, _) -> l) $ _eOperations e
-  ((), res) <- runEval (initialCtx ops) (evalProgram p)
+  ((), res) <- runEval $ evalProgram p
   liftIO $ putDocW 80 $ pretty res
   return ()
 
@@ -97,7 +97,7 @@ main = do
     [ "let f = fn x -> print x"
     , "run print 5"
     , "eff Reader = \
-      \ ask : Unit -> Int;"
+      \ ask : Unit => Int;"
     , "let z = get ()"
     ]
   mapM_ (\s -> reportError (testFile s) >> putStrLn "") $

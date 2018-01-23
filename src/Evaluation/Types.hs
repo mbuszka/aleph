@@ -14,7 +14,6 @@ import Control.Lens
 
 import Control.Monad
 import Control.Monad.State
-import Control.Monad.Reader
 import Control.Monad.Writer hiding ((<>))
 import Control.Monad.Except
 
@@ -30,8 +29,7 @@ import Print
 import Syntax.Grammar(Ident, TyLit)
 
 type MonadEval m =
-  ( MonadReader Ctx m
-  , MonadWriter [ExpVal] m
+  ( MonadWriter [ExpVal] m
   , MonadError  Error m
   , MonadIO m
   )
@@ -46,7 +44,6 @@ instance Pretty Handlers where
 
 data Ctx = Ctx
   { _handlers :: Map TyLit [Handlers]
-  , _effects  :: Map Ident TyLit
   }
 
 instance (Pretty k, Pretty v) => Pretty (Map k v) where
@@ -54,9 +51,9 @@ instance (Pretty k, Pretty v) => Pretty (Map k v) where
     (\(k, v) -> pretty k <+> "->" <+> pretty v) $ M.assocs m))
 
 instance Pretty Ctx where
-  pretty (Ctx hs eff) = "Runtime context:" <> line
+  pretty (Ctx hs) = "Runtime context:" <> line
     <> "Handlers:" <+> pretty hs <> line
-    <> "Effects:" <+> pretty eff <> line
+    -- <> "Effects:" <+> pretty eff <> line
 
 newtype Cont = Cont { apply :: forall m. (MonadEval m) => ExpVal -> m ExpVal }
 
@@ -66,7 +63,7 @@ data ExpVal
   | ListVal [Integer]
   | UnitVal
   | ContVal Cont
-  | FunVal (forall m. MonadEval m => ExpVal -> Cont -> m ExpVal)
+  | FunVal (forall m. MonadEval m => ExpVal -> Ctx -> Cont -> m ExpVal)
   | OpVal Ident TyLit
 
 instance Pretty ExpVal where
@@ -81,33 +78,25 @@ instance Pretty ExpVal where
 makeLenses ''Ctx
 makeLenses ''Handlers
 
-abort :: (MonadEval m) => (forall a. Doc a) -> m b
-abort msg = do
-  e <- ask
-  throw $ RuntimeError $ msg <> line <> pretty e
+abort :: (MonadEval m) => Ctx -> (forall a. Doc a) -> m b
+abort ctx msg = throw $ RuntimeError $ msg <> line <> pretty ctx
 
-getOrErr :: (MonadEval m, Pretty k, Ord k) => k -> Map k a -> m a
-getOrErr k m = fromMaybe ("Could not find" <+> pretty k) $ M.lookup k m
+getOrErr :: (MonadEval m, Pretty k, Ord k) => Ctx -> k -> Map k a -> m a
+getOrErr c k m = fromMaybe c ("Could not find" <+> pretty k) $ M.lookup k m
 
-fromMaybe :: (MonadEval m) => (forall b. Doc b) -> Maybe a -> m a
-fromMaybe _ (Just v) = return v
-fromMaybe t  Nothing = abort t
-
-lookupLbl :: (MonadEval m) => Ident -> m TyLit
-lookupLbl x = do
-  e <- ask
-  e ^. effects . to (getOrErr x)
+fromMaybe :: (MonadEval m) => Ctx -> (forall b. Doc b) -> Maybe a -> m a
+fromMaybe c _ (Just v) = return v
+fromMaybe c t  Nothing = abort c t
 
 lookupHandler :: (MonadEval m) 
-              => TyLit -> Ident -> m (ExpVal -> Cont -> m ExpVal)
-lookupHandler lbl id = do
-  e  <- ask
-  hs <- e ^. handlers . to (getOrErr lbl)
-  h <-  fromMaybe ("No handler for:" <+> pretty lbl) $ Maybe.listToMaybe hs
-  getOrErr id $ operations h
+              => TyLit -> Ident -> Ctx -> m (ExpVal -> Cont -> m ExpVal)
+lookupHandler lbl id ctx = do
+  hs <- ctx ^. handlers . to (getOrErr ctx lbl)
+  h <-  fromMaybe ctx ("No handler for:" <+> pretty lbl) $ Maybe.listToMaybe hs
+  getOrErr ctx id $ operations h
 
-withHandlers :: MonadEval m => TyLit -> Handlers -> m a -> m a
-withHandlers lbl hs = local $ over handlers (M.insertWith (++) lbl [hs])
+insertHandlers :: TyLit -> Handlers -> Ctx -> Ctx
+insertHandlers lbl hs = over handlers (M.insertWith (++) lbl [hs])
 
-withoutHandlers :: MonadEval m => TyLit -> m a -> m a
-withoutHandlers l = local $ over handlers (M.adjust (drop 1) l)
+removeHandlers :: TyLit -> Ctx -> Ctx
+removeHandlers lbl = over handlers (M.adjust (drop 1) lbl)

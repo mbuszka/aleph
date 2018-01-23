@@ -29,6 +29,7 @@ data OpDef = OpDef Ident Typ Typ
 data Term
   = App Term Term
   | Let Ident Term Term
+  | LetRec Ident Ident Term Term
   | Abs Ident Term
   | Cond Term Term Term
   | Var Ident

@@ -1,8 +1,8 @@
 eff RD =
-  ask : Unit -> Int;
+  ask : Unit => Int;
 
 eff EX =
-  throw : Int -> Unit;
+  throw : Int => Unit;
 
 let f = fn x -> x
 
@@ -49,3 +49,49 @@ run if false then print 17 else print 14 end
 run print (add 3 4)
 
 run if isZero (sub 3 4) then print 0 else print 1 end
+
+let test = cons 1 (cons 2 (cons 3 (cons 4 (cons 5 nil))))
+
+
+
+run u <- print 3,
+  letrec fun x ->
+    u <- print x,
+    if isZero x
+      then ()
+      else fun (sub x 1) end
+  in fun 5
+
+
+let map = fn f ->
+  letrec aux l ->
+    if null l 
+      then nil
+      else
+        h <- head l,
+        t <- tail l,
+        fh <- f h,
+        ft <- aux t,
+        cons fh ft
+      end
+  in aux
+
+let printInt = fn x ->
+  u <- print x,
+  1
+
+run 
+  let f = fn x -> add x 2
+  in
+    l <- map f test,
+    map printInt l
+
+let f = fn x ->
+    r <- ask (),
+    mul x r
+
+let c = fn u -> map f test
+
+run
+  l <- h c 2,
+  map printInt l

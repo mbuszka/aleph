@@ -192,6 +192,19 @@ infer (Let v body exp) = do
   env <- ask
   s <- canonicalize $ generalize env ty1
   inEnv v s $ infer exp
+infer (LetRec f v body exp) = do
+  tf <- freshTyp
+  tv <- freshTyp
+  ((t, e), cs) <- listen $ do
+    (tr, er) <- inEnv f (Scheme [] tf) $ inEnv v (Scheme [] tv) $ infer body
+    constrTyp tf (TyArr tv er tr)
+    return (tf, (Row [] Nothing))
+  s <- gets _sSubst
+  s' <- solve s cs
+  modify $ sSubst .~ s'
+  env <- ask
+  s <- canonicalize $ generalize env tf
+  inEnv f s $ infer exp
 infer (Handle lbl t hs) = do
   (ty1, e1) <- infer t
   fr <- fresh

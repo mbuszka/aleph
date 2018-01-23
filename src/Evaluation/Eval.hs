@@ -30,8 +30,8 @@ import Evaluation.Env as Env
 import Print
 
 runEval :: (MonadError Error m, MonadIO m) 
-  => Ctx -> ReaderT Ctx (WriterT [ExpVal] m) a -> m (a, [ExpVal])
-runEval e c = runWriterT (runReaderT c e)
+  => WriterT [ExpVal] m a -> m (a, [ExpVal])
+runEval = runWriterT
 
 defaultHandlers :: Map TyLit [Handlers]
 defaultHandlers = M.fromList
@@ -41,19 +41,21 @@ defaultHandlers = M.fromList
         ])])
   ]
 
-initialCtx :: Map Ident TyLit -> Ctx
+initialCtx :: Ctx
 initialCtx = Ctx defaultHandlers
 
 evalProgram :: (MonadEval m) => [Top] -> m ()
-evalProgram = evalP Env.init
+evalProgram = evalP Env.init initialCtx
 
-evalP :: MonadEval m => Env -> [Top] -> m ()
-evalP e (Def x t : ts) = do
-  v <- eval e t finalCont
-  evalP (Env.extend x v e) ts
-evalP e (Run t : ts) = eval e t finalCont >> evalP e ts
-evalP e (EffDef{} : ts) = evalP e ts
-evalP _ [] = return ()
+evalP :: MonadEval m => Env -> Ctx -> [Top] -> m ()
+evalP e c (Def x t : ts) = do
+  v <- eval e c t finalCont
+  evalP (Env.extend x v e) c ts
+evalP e c (Run t : ts) = eval e c t finalCont >> evalP e c ts
+evalP env c (EffDef l ops : ts) =
+  let env' = foldl (\e -> \case (OpDef x _ _) -> Env.extend x (OpVal x l) e) env ops
+  in evalP env' c ts
+evalP _ _ [] = return ()
 
 finalCont :: Cont
 finalCont = Cont $ \v -> return v
@@ -62,53 +64,54 @@ find p (x:xs) = case p x of
   Just y  -> Just y
   Nothing -> find p xs
 
-prepareHandlers :: TyLit -> Env -> Cont -> [Handler] -> (Handlers, Cont)
-prepareHandlers l e k hs =
+prepareHandlers :: Env -> Ctx -> Cont -> [Handler] -> (Handlers, Cont)
+prepareHandlers env ctx exitK hs =
   let Just (x, t) = 
         find (\case Ret x t -> Just (x, t)
-                    _ -> Nothing) hs
-      k' = Cont (\v -> eval (Env.extend x v e) t k)
+                    _       -> Nothing
+             ) hs
+      returnK = Cont (\v -> eval (Env.extend x v env) ctx t exitK)
   in  (Handlers 
         (M.fromList $ foldr (\x acc -> case x of
           Op id a cont t -> 
-            (id, \v k -> 
-              withoutHandlers l $ eval 
-                (Env.extend a v . Env.extend cont (ContVal k) $ e) t k'
+            (id, \v k -> let
+              env' = Env.extend a v . Env.extend cont (ContVal k) $ env
+              in eval env' ctx t exitK
             ) : acc
           Ret _ _ -> acc) [] hs)
-      , k')
+      , returnK)
 
-eval :: MonadEval m => Env -> Term -> Cont -> m ExpVal
-eval e t k = case t of
-  Var v -> Env.lookup v e >>= apply k
+eval :: MonadEval m => Env -> Ctx -> Term -> Cont -> m ExpVal
+eval env ctx t k = case t of
+  Var v -> Env.lookup ctx v env >>= apply k
   Lit v -> case v of
     Grammar.VInt i  -> apply k $ IntVal i
     Grammar.VUnit   -> apply k UnitVal
     Grammar.VBool b -> apply k $ BoolVal b
-  Abs id exp -> apply k $ FunVal (\v k -> eval (Env.extend id v e) exp k)
+  Abs id exp -> apply k $ FunVal (\v c k -> eval (Env.extend id v env) c exp k)
   App fun exp ->
-    eval e fun $ Cont $ \case 
-      FunVal f   -> eval e exp $ Cont (`f` k)
-      OpVal id l -> eval e exp $ Cont (\v -> do
-        h <- lookupHandler l id
+    eval env ctx fun $ Cont $ \case 
+      FunVal f   -> eval env ctx exp $ Cont (\v -> f v ctx k)
+      OpVal id l -> eval env ctx exp $ Cont (\v -> do
+        h <- lookupHandler l id ctx
         h v k)
-      ContVal k  -> eval e exp k
-      v -> abort $ "Unexpected value:" <+> pretty v <+> "function required."
+      ContVal k  -> eval env ctx exp k
+      v -> abort ctx $ "Unexpected value:" <+> pretty v <+> "function required."
   Let id body exp ->
-    eval e body $ Cont $ \v -> eval (Env.extend id v e) exp k
+    eval env ctx body $ Cont $ \v -> eval (Env.extend id v env) ctx exp k
+  LetRec f x body exp ->
+    let env' = Env.extend f fun env
+        fun  = FunVal $ \v c k -> eval (Env.extend x v env') c body k
+    in  eval env' ctx exp k
   Cond c t1 t2 ->
-    eval e c $ Cont $ \case BoolVal b -> if b then eval e t1 k else eval e t2 k
+    eval env ctx c $ Cont $ \case BoolVal b -> if b then eval env ctx t1 k else eval env ctx t2 k
   Bind id e1 e2 ->
-    eval e e1 $ Cont $ \v -> eval (Env.extend id v e) e2 k
+    eval env ctx e1 $ Cont $ \v -> eval (Env.extend id v env) ctx e2 k
   Handle lbl exp hs ->
-    let (hs', k') = prepareHandlers lbl e k hs
-    in  do
-      ctx <- ask
-      withHandlers lbl hs' $ eval e exp $ Cont (\v -> local (\_ -> ctx) $ apply k' v)
-  Lift lbl exp -> do
-    ctx <- ask
+    let (hs', k') = prepareHandlers env ctx k hs
+    in  eval env (insertHandlers lbl hs' ctx) exp k'
+  Lift lbl exp ->
     let hs = _handlers ctx
-    -- liftIO $ putDocW 80 $ "lifting" <+> pretty lbl <+> "with handlers" <+> pretty hs <> line
-    withoutHandlers lbl $ eval e exp $ Cont (\v -> local (\_ -> ctx) $ apply k v)
+    in  eval env (removeHandlers lbl ctx) exp k
 
 

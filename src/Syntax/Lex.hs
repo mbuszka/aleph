@@ -40,7 +40,7 @@ lexer = P.makeTokenParser $ P.LanguageDef
   , P.opStart         = P.oneOf "-<>"
   , P.opLetter        = P.oneOf "-<>"
   , P.reservedNames   = map T.unpack $ S.toList reservedTokens
-  , P.reservedOpNames = [ "=", "->", ":", "," ]
+  , P.reservedOpNames = [ "=", "->", "=>", ":", "," ]
   , P.caseSensitive   = True
   }
 
@@ -51,6 +51,7 @@ identChar = P.alphaNum <|> P.oneOf "'_"
 reservedTokens :: Set Text
 reservedTokens = S.fromList
   [ "let"
+  , "letrec"
   , "run"
   , "in"
   , "eff"

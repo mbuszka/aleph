@@ -31,10 +31,11 @@ top =  Def <$> (res "let" >> ident) <*> (resOp "=" >> term)
    <|> EffDef <$> (res "eff" >> tyLit) <*> (resOp "=" >> opDefs)
 
 opDefs = P.endBy 
-  (OpDef <$> ident <*> (resOp ":" >> (TyLit <$> tyLit)) <*> (resOp "->" >> (TyLit <$> tyLit)))
+  (OpDef <$> ident <*> (resOp ":" >> typ) <*> (resOp "=>" >> typ))
   (resOp ";")
 
 term =  Let    <$> (res "let" *> ident) <*> (resOp "=" *>  term) <*> (res "in" *> term)
+    <|> LetRec <$> (res "letrec" *> ident) <*> ident <*> (resOp "->" *> term) <*> (res "in" *> term)
     <|> Abs    <$> (res "fn"  *> ident) <*> (resOp "->" *> term)
     <|> Handle <$> (res "handle" *> tyLit) <*> (res "in" *> term) <*> (res "with" *> handlers)
     <|> Lift   <$> (res "lift"   *> tyLit) <*> (res "in" *> term2)

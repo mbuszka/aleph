@@ -77,6 +77,8 @@ prettyTerm x (App a b) =
   priority x 1 $ prettyTerm 2 a <+> prettyTerm 2 b
 prettyTerm x (Let id b e) = 
   priority x 0 $ "let" <+> pretty id <+> "=" <+> prettyTerm 0 b <+> "in" <+> prettyTerm 0 e
+prettyTerm y (LetRec f x b e) =
+  priority y 0 $ "letrec" <+> pretty f <+> pretty x <+> "->" <+> prettyTerm 0 b <+> "in" <+> prettyTerm 0 e
 prettyTerm x (Abs id b) = 
   priority x 0 $ "fn" <+> pretty id <+> "->" <+> prettyTerm 0 b
 prettyTerm x (Var id) = pretty id

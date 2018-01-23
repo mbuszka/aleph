@@ -66,13 +66,17 @@ prims = M.fromList
   , (ID "div", iii)
   , (ID "isZero", ib)
   , (ID "nil", Scheme [] list)
-  , (ID "cons", Scheme [TV "a"] $ TyArr int (row "a") list)
+  , (ID "cons", Scheme [TV "a", TV "b"] $ TyArr int (row "a") (TyArr list (row "b") list))
+  , (ID "null", Scheme [TV "a"] $ TyArr list (row "a") bool)
+  , (ID "head", Scheme [TV "a"] $ TyArr list (row "a") int)
+  , (ID "tail", Scheme [TV "a"] $ TyArr list (row "a") list) 
   ] where
       int = TyLit $ TL "Int"
       list = TyLit $ TL "List"
+      bool = TyLit $ TL "Bool"
       row = Row [] . Just . TV
       iii = Scheme [TV "a", TV "b"] $ TyArr int (row "a") (TyArr int (row "b") int)
-      ib  = Scheme [TV "a"] $ TyArr int (row "a") (TyLit $ TL "Bool")
+      ib  = Scheme [TV "a"] $ TyArr int (row "a") bool
 
 initEnv :: Environment
 initEnv = Env (M.union effects prims) operations effToOps
