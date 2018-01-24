@@ -52,8 +52,6 @@ run if isZero (sub 3 4) then print 0 else print 1 end
 
 let test = cons 1 (cons 2 (cons 3 (cons 4 (cons 5 nil))))
 
-
-
 run u <- print 3,
   letrec fun x ->
     u <- print x,
@@ -76,14 +74,15 @@ let map = fn f ->
       end
   in aux
 
+
 let printInt = fn x ->
   u <- print x,
   1
 
+let someFun = fn x -> add x 2
+
 run 
-  let f = fn x -> add x 2
-  in
-    l <- map f test,
+    l <- map someFun test,
     map printInt l
 
 let f = fn x ->
@@ -92,6 +91,10 @@ let f = fn x ->
 
 let c = fn u -> map f test
 
+{-
+
 run
   l <- h c 2,
   map printInt l
+
+-}

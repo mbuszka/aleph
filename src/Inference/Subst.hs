@@ -79,6 +79,16 @@ instance (Substitute a, Substitute b) => Substitute (Either a b) where
   apply s (Left a)  = Left  <$> apply s a
   apply s (Right b) = Right <$> apply s b
 
+instance Substitute Scheme where
+  apply s (Scheme vs t) = Scheme vs <$> apply s t
+
+instance Substitute Environment where
+  apply s e = 
+    let tc = _eTypeContext e
+    in do
+      tc' <- apply s tc
+      return $ set eTypeContext tc' e
+
 instance FreeVars Typ where
   ftv (TyArr t1 r t2)    = ftv t1 `S.union` ftv r `S.union` ftv t2
   ftv _                  = S.empty

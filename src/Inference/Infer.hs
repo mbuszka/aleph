@@ -76,8 +76,10 @@ evalCheck c = fst <$> evalRWST c initEnv initState
 
 processTop :: (Check m) => Top -> m Environment
 processTop (Def id t) = do
-  scheme <- processDef t
-  extendEnv id scheme <$> ask
+  (scheme, sub) <- processDef t
+  env  <- ask
+  env' <- apply sub env
+  return $ extendEnv id scheme env'
 processTop (Run t) = process t >> ask
 processTop (EffDef lbl ops) = processEff lbl ops
 
@@ -87,7 +89,7 @@ processProgram (t:ts) = do
   e <- processTop t
   local (\_ -> e) $ processProgram ts
 
-processDef :: (Check m) => Term -> m Scheme
+processDef :: (Check m) => Term -> m (Scheme, Subst)
 processDef t = do
   ((typ, env), cs) <- listen $ infer t
   (typ, cs) <- listen $ do
@@ -99,7 +101,7 @@ processDef t = do
   sub <- solve s cs
   -- liftIO $ putDocW 80 $ pretty sub <> line
   t <- apply sub typ
-  canonicalize $ generalize emptyEnv t
+  (,) <$> (canonicalize $ generalize emptyEnv t ) <*> pure sub
 
 processEff :: (Check m) => TyLit -> [OpDef] -> m Environment
 processEff lbl ops = do

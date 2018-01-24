@@ -33,7 +33,7 @@ testFile f = do
   t <- liftIO $ TIO.readFile f
   p <- parse program t
   e <- evalCheck $ processProgram p
-  -- liftIO $ putDocW 80 $ pretty e <> line
+  liftIO $ putDocW 80 $ pretty e <> line
   ((), res) <- runEval $ evalProgram p
   liftIO $ putDocW 80 $ pretty res <> line
   return ()

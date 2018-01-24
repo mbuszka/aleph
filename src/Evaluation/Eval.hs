@@ -78,7 +78,7 @@ prepareHandlers env ctx exitK hs =
               k'   = ContVal k
               env' = Env.extend a v . Env.extend cont k' $ env
               in do
-                liftIO $ putDocW 80 $ "op trace:" <+> pretty id <+> pretty v <> line
+                -- liftIO $ putDocW 80 $ "op trace:" <+> pretty id <+> pretty v <> line
                 eval env' ctx t exitK
             ) : acc
           Ret _ _ -> acc) [] hs)

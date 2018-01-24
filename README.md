@@ -1,6 +1,13 @@
 # aleph
 An experimental language with algebraic effects
 
+Necessary information:
+  - Syntax
+  - Intuitive semantics
+  - Overview of code structure
+  - How to run, compile, test
+  
+
 ### Grammar
 
     toplevel ::= let <identifier> = <value>
