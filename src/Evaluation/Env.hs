@@ -27,28 +27,28 @@ init = Env $ Map.fromList
   [ (ID "print", OpVal (ID "print") (TL "IO"))
   , (ID "add", 
     FunVal $ 
-      \case (IntVal a) -> \_ k -> apply k $ 
-              FunVal (\case (IntVal b) -> \_ k -> apply k $ IntVal (a + b)))
+      \case (IntVal a) -> \c -> apply c $
+              FunVal (\case (IntVal b) -> \c -> apply c $ IntVal (a + b)))
   , (ID "sub", 
     FunVal $ 
-      \case (IntVal a) -> \_ k -> apply k $ 
-              FunVal (\case (IntVal b) -> \_ k -> apply k $ IntVal (a - b)))
+      \case (IntVal a) -> \k -> apply k $ 
+              FunVal (\case (IntVal b) -> \k -> apply k $ IntVal (a - b)))
   , (ID "mul", 
     FunVal $ 
-      \case (IntVal a) -> \_ k -> apply k $ 
-              FunVal (\case (IntVal b) -> \_ k -> apply k $ IntVal (a * b)))
+      \case (IntVal a) -> \k -> apply k $ 
+              FunVal (\case (IntVal b) -> \k -> apply k $ IntVal (a * b)))
   , (ID "div", 
     FunVal $ 
-      \case (IntVal a) -> \_ k -> apply k $ 
-              FunVal (\case (IntVal b) -> \_ k -> apply k $ IntVal (a `div` b)))
+      \case (IntVal a) -> \k -> apply k $ 
+              FunVal (\case (IntVal b) -> \k -> apply k $ IntVal (a `div` b)))
   , (ID "isZero",
     FunVal $
-      \case (IntVal a) -> \_ k -> apply k $ BoolVal (a == 0))
+      \case (IntVal a) -> \k -> apply k $ BoolVal (a == 0))
   , (ID "nil", ListVal [])
   , (ID "cons", FunVal $ 
-      \case (IntVal a) -> \_ k -> apply k $ 
-              FunVal (\case (ListVal b) -> \_ k -> apply k $ ListVal (a : b)))
-  , (ID "null", FunVal $ \case ListVal l -> \_ k -> apply k $ BoolVal (Prelude.null l))
-  , (ID "head", FunVal $ \case ListVal (h:_) -> \_ k -> apply k (IntVal h))
-  , (ID "tail", FunVal $ \case ListVal (_:t) -> \_ k -> apply k (ListVal t))
+      \case (IntVal a) -> \k -> apply k $ 
+              FunVal (\case (ListVal b) -> \k -> apply k $ ListVal (a : b)))
+  , (ID "null", FunVal $ \case ListVal l -> \k -> apply k $ BoolVal (Prelude.null l))
+  , (ID "head", FunVal $ \case ListVal (h:_) -> \k -> apply k (IntVal h))
+  , (ID "tail", FunVal $ \case ListVal (_:t) -> \k -> apply k (ListVal t))
   ]

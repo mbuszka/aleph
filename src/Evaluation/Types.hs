@@ -34,49 +34,55 @@ type MonadEval m =
   , MonadIO m
   )
 
-newtype Handlers = Handlers
-  { operations :: forall m. MonadEval m 
-              => Map Ident (ExpVal -> Cont -> m ExpVal)
-  }
+type Handlers m = Map Ident ([Cont] -> Fun m)
+type Fun m = ExpVal -> Ctx -> m ExpVal
 
-instance Pretty Handlers where
-  pretty (Handlers ops) = "handlers..."
 
 data Ctx = Ctx
-  { _handlers :: Map TyLit [Handlers]
+  { _contStack :: [Cont]
   }
 
-instance (Pretty k, Pretty v) => Pretty (Map k v) where
-  pretty m = align (vsep (map 
-    (\(k, v) -> pretty k <+> "->" <+> pretty v) $ M.assocs m))
-
-instance Pretty Ctx where
-  pretty (Ctx hs) = "Runtime context:" <> line
-    <> "Handlers:" <+> pretty hs <> line
-    -- <> "Effects:" <+> pretty eff <> line
-
-newtype Cont = Cont { apply :: forall m. (MonadEval m) => ExpVal -> m ExpVal }
+data Cont
+  = HandlerFrame 
+      TyLit
+      (forall m. MonadEval m => Fun m)
+      (forall m. MonadEval m => Handlers m)
+  | RegularFrame (forall m. MonadEval m => Fun m)
+  | LiftFrame TyLit
 
 data ExpVal
   = IntVal Integer
   | BoolVal Bool
   | ListVal [Integer]
   | UnitVal
-  | ContVal Cont
-  | FunVal (forall m. MonadEval m => ExpVal -> Ctx -> Cont -> m ExpVal)
+  | ResVal [Cont]
+  | FunVal (forall m. MonadEval m => Fun m)
   | OpVal Ident TyLit
+
+makeLenses ''Ctx
+
+instance Pretty Cont where
+  pretty (HandlerFrame l cs _) = "Handlers of" <+> pretty l
+  pretty (RegularFrame _)      = "Regular cont"
+  pretty (LiftFrame l)         = "Lift" <+> pretty l
+
+instance (Pretty k, Pretty v) => Pretty (Map k v) where
+  pretty m = align (vsep (map 
+    (\(k, v) -> pretty k <+> "->" <+> pretty v) $ M.assocs m))
+
+instance Pretty Ctx where
+  pretty (Ctx cs) = "Runtime stack:" <> line
+      <> align (vsep $ map pretty cs) <> line
+  
 
 instance Pretty ExpVal where
   pretty (IntVal i)  = pretty i
   pretty (BoolVal True) = "true"
   pretty (BoolVal False) = "false"
   pretty UnitVal     = "()"
-  pretty (ContVal c) = "continuation"
+  pretty (ResVal  _) = "resumption"
   pretty (FunVal  f) = "function"
   pretty (OpVal i l) = "operator:" <> pretty i <+> pretty l
-
-makeLenses ''Ctx
-makeLenses ''Handlers
 
 abort :: (MonadEval m) => Ctx -> (forall a. Doc a) -> m b
 abort ctx msg = throw $ RuntimeError $ msg <> line <> pretty ctx
@@ -88,15 +94,42 @@ fromMaybe :: (MonadEval m) => Ctx -> (forall b. Doc b) -> Maybe a -> m a
 fromMaybe c _ (Just v) = return v
 fromMaybe c t  Nothing = abort c t
 
-lookupHandler :: (MonadEval m) 
-              => TyLit -> Ident -> Ctx -> m (ExpVal -> Cont -> m ExpVal)
-lookupHandler lbl id ctx = do
-  hs <- ctx ^. handlers . to (getOrErr ctx lbl)
-  h <-  fromMaybe ctx ("No handler for:" <+> pretty lbl) $ Maybe.listToMaybe hs
-  getOrErr ctx id $ operations h
+apply :: MonadEval m => Ctx -> ExpVal -> m ExpVal
+apply (Ctx [])     v = return v
+apply (Ctx (c:cs)) v = case c of
+  RegularFrame f     -> f v (Ctx cs)
+  HandlerFrame _ r _ -> r v (Ctx cs)
+  LiftFrame _        -> apply (Ctx cs) v
 
-insertHandlers :: TyLit -> Handlers -> Ctx -> Ctx
-insertHandlers lbl hs = over handlers (M.insertWith (++) lbl [hs])
+pushFrame :: Cont -> Ctx -> Ctx
+pushFrame c (Ctx cs) = Ctx $ c:cs
 
-removeHandlers :: TyLit -> Ctx -> Ctx
-removeHandlers lbl = over handlers (M.adjust (drop 1) lbl)
+splitOn :: MonadEval m => TyLit -> Ctx -> m ([Cont], Handlers m, [Cont])
+splitOn l c@(Ctx cs) = let
+  aux :: forall m. MonadEval m => Int -> [Cont] -> m ([Cont], Handlers m, [Cont])
+  aux k (f@(HandlerFrame l' r hs) : fs)
+    | l == l' && k == 0 = return ([f], hs, fs)
+    | l == l' = do
+        (front, hs, rest) <- aux (k - 1) fs
+        return (f:front, hs, rest)
+  aux k (f@(LiftFrame l') : fs)
+    | l == l' = do
+      (front, hs, rest) <- aux (k + 1) fs
+      return (f:front, hs, rest)
+  aux k (f:fs) = do
+    (front, hs, rest) <- aux k fs
+    return (f:front, hs, rest)
+  aux _ [] = abort c $ "Could not find handler for" <+> pretty l
+  in aux 0 cs
+    -- lookupHandler :: (MonadEval m) 
+--               => TyLit -> Ident -> Ctx -> m (ExpVal -> Cont -> m ExpVal)
+-- lookupHandler lbl id ctx = do
+--   hs <- ctx ^. handlers . to (getOrErr ctx lbl)
+--   h <-  fromMaybe ctx ("No handler for:" <+> pretty lbl) $ Maybe.listToMaybe hs
+--   getOrErr ctx id $ operations h
+
+-- insertHandlers :: TyLit -> Handlers -> Ctx -> Ctx
+-- insertHandlers lbl hs = over handlers (M.insertWith (++) lbl [hs])
+
+-- removeHandlers :: TyLit -> Ctx -> Ctx
+-- removeHandlers lbl = over handlers (M.adjust (drop 1) lbl)
