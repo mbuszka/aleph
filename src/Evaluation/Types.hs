@@ -1,6 +1,5 @@
 {-# LANGUAGE
-    GADTs
-  , ConstraintKinds
+    ConstraintKinds
   , FlexibleContexts
   , LambdaCase
   , OverloadedStrings
@@ -121,15 +120,3 @@ splitOn l c@(Ctx cs) = let
     return (f:front, hs, rest)
   aux _ [] = abort c $ "Could not find handler for" <+> pretty l
   in aux 0 cs
-    -- lookupHandler :: (MonadEval m) 
---               => TyLit -> Ident -> Ctx -> m (ExpVal -> Cont -> m ExpVal)
--- lookupHandler lbl id ctx = do
---   hs <- ctx ^. handlers . to (getOrErr ctx lbl)
---   h <-  fromMaybe ctx ("No handler for:" <+> pretty lbl) $ Maybe.listToMaybe hs
---   getOrErr ctx id $ operations h
-
--- insertHandlers :: TyLit -> Handlers -> Ctx -> Ctx
--- insertHandlers lbl hs = over handlers (M.insertWith (++) lbl [hs])
-
--- removeHandlers :: TyLit -> Ctx -> Ctx
--- removeHandlers lbl = over handlers (M.adjust (drop 1) lbl)

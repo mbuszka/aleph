@@ -1,17 +1,11 @@
 {-# LANGUAGE
-    GADTs
-  , ConstraintKinds
+    ConstraintKinds
   , FlexibleContexts
   , LambdaCase
   , OverloadedStrings
-  , RankNTypes
-  , TemplateHaskell
 #-}
 
 module Evaluation.Eval where
-
-import Control.Concurrent
-import Control.Lens
 
 import Control.Monad
 import Control.Monad.State
@@ -24,6 +18,7 @@ import           Data.Map(Map)
 import qualified Data.Text as T
 import           Data.Text(Text)
 
+import Builtins
 import Error
 import Syntax.Grammar as Grammar hiding (Val)
 import Evaluation.Types
@@ -34,21 +29,8 @@ runEval :: (MonadError Error m, MonadIO m)
   => WriterT [ExpVal] m a -> m (a, [ExpVal])
 runEval = runWriterT
 
-defaultHandlers :: [Cont]
-defaultHandlers =
-  [ HandlerFrame (TL "IO")
-      (\v c -> apply c v)
-      (M.fromList 
-        [ (ID "print", 
-          \res v ctx -> tell [v] >> apply (Ctx $ res ++ _contStack ctx) UnitVal)
-        ])
-  ]
-
-initialCtx :: Ctx
-initialCtx = Ctx defaultHandlers
-
 evalProgram :: (MonadEval m) => [Top] -> m ()
-evalProgram = evalP Env.init initialCtx
+evalProgram = evalP evalEnv evalCtx
 
 evalP :: MonadEval m => Env -> Ctx -> [Top] -> m ()
 evalP e c (Def x t : ts) = do
@@ -66,14 +48,8 @@ splitHandlers = let
   p (_  , ops) (Ret    v t) = (Just (v, t), ops)
   in foldl p (Nothing, M.empty)
 
-find p (x:xs) = case p x of
-  Just y  -> Just y
-  Nothing -> find p xs
-
 eval :: MonadEval m => Env -> Term -> Ctx -> m ExpVal
-eval env t ctx = do
-  -- liftIO $ putDocW 80 $ pretty t <> line
-  -- liftIO $ threadDelay 1000000
+eval env t ctx =
   case t of
     Var v -> Env.lookup ctx v env >>= apply ctx
     Lit v -> case v of
@@ -90,10 +66,7 @@ eval env t ctx = do
           h <- getOrErr c id hs
           h resumption v (Ctx rest))
         ResVal cs -> eval env exp . pushFrame (RegularFrame $ \v -> \case
-          Ctx c -> do
-            -- liftIO $ putDocW 80 $ "calling resumption with:" <> line
-            --   <> "top:" <+> pretty cs <> line
-            --   <> "stack:" <+> pretty c <> line
+          Ctx c ->
             apply (Ctx (cs ++ c)) v)
         v -> \c -> abort c $ "Unexpected value:" <+> pretty v <+> "function required.") ctx
     Let id body exp ->

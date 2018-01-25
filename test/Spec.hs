@@ -25,7 +25,7 @@ import Syntax.Grammar
 import Syntax.Parse
 import Print
 import Evaluation.Eval
-import Inference.Environment(_eOperations)
+import Inference.Env(_eOperations)
 
 
 testFile :: (MonadError Error m, MonadIO m) => FilePath -> m ()

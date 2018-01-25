@@ -16,13 +16,14 @@ module Inference.Subst
 import Control.Lens
 import Control.Monad.Except
 
-import qualified Data.Map as M
+import qualified Data.Map as Map
 import           Data.Map (Map)
-import qualified Data.Set as S
+import qualified Data.Set as Set
 import           Data.Set (Set)
 
-import Inference.Environment
 import Error
+import qualified Inference.Env as Env
+import           Inference.Env (Env, Scheme(..))
 import Syntax.Grammar
 import Print
 
@@ -34,7 +35,7 @@ instance Pretty (Either Typ Row) where
   pretty (Right r) = pretty r
 
 instance Pretty Subst where
-  pretty = pretty . M.toList . unwrap
+  pretty = pretty . Map.toList . unwrap
 
 class Substitute a where
   apply :: (MonadError Error m) => Subst -> a -> m a
@@ -43,26 +44,24 @@ class FreeVars a where
   ftv :: a -> Set TyVar
 
 emptySubst :: Subst
-emptySubst = Subst M.empty
+emptySubst = Subst Map.empty
 
 compose :: (MonadError Error m, MonadIO m) => Subst -> Subst -> m Subst
-compose a b = do
-  -- liftIO $ putDocW 80 $ "extending subst with" <+> pretty a <> line
-  Subst <$> (M.union (unwrap a) <$> (unwrap <$> apply a b))
+compose a b = Subst <$> (Map.union (unwrap a) <$> (unwrap <$> apply a b))
 
 extend :: (MonadError Error m, MonadIO m) => TyVar -> (Either Typ Row) -> Subst -> m Subst
-extend v t s = compose (Subst $ M.singleton v t) s
+extend v t = compose (Subst $ Map.singleton v t)
 
 instance Substitute Typ where
   apply s (TyArr t1 r t2) = TyArr <$> (apply s t1) <*> (apply s r) <*> (apply s t2)
-  apply s (TyVar tv)      = case M.lookup tv $ unwrap s of
+  apply s (TyVar tv)      = case Map.lookup tv $ unwrap s of
     Nothing        -> return (TyVar tv)
     Just (Left t)  -> return t
     Just (Right _) -> throw $ KindError $ "Tried to assign row to a type var" <+> pretty tv
   apply _ l               = return $ l
 
 instance Substitute Row where
-  apply s r@(Row ls (Just v)) = case M.lookup v $ unwrap s of
+  apply s r@(Row ls (Just v)) = case Map.lookup v $ unwrap s of
     Nothing                  -> return r
     Just (Right (Row ls' t)) -> return $ Row (ls ++ ls') t
     Just (Left t)            ->
@@ -82,26 +81,26 @@ instance (Substitute a, Substitute b) => Substitute (Either a b) where
 instance Substitute Scheme where
   apply s (Scheme vs t) = Scheme vs <$> apply s t
 
-instance Substitute Environment where
+instance Substitute Env where
   apply s e = 
-    let tc = _eTypeContext e
+    let tc = Env._eTypeContext e
     in do
       tc' <- apply s tc
-      return $ set eTypeContext tc' e
+      return $ set Env.eTypeContext tc' e
 
 instance FreeVars Typ where
-  ftv (TyArr t1 r t2)    = ftv t1 `S.union` ftv r `S.union` ftv t2
-  ftv _                  = S.empty
+  ftv (TyArr t1 r t2)    = ftv t1 `Set.union` ftv r `Set.union` ftv t2
+  ftv _                  = Set.empty
 
 instance FreeVars Row where
-  ftv (Row _ (Just v)) = S.singleton v
-  ftv _                = S.empty
+  ftv (Row _ (Just v)) = Set.singleton v
+  ftv _                = Set.empty
 
 instance FreeVars Scheme where
-  ftv (Scheme bound ty) = ftv ty `S.difference` S.fromList bound
+  ftv (Scheme bound ty) = ftv ty `Set.difference` Set.fromList bound
 
 instance FreeVars a => FreeVars [a] where
-  ftv = foldr (S.union . ftv) S.empty
+  ftv = foldr (Set.union . ftv) Set.empty
 
-instance FreeVars Environment where
-  ftv env = env ^. eTypeContext . to (ftv . M.elems)
+instance FreeVars Env where
+  ftv env = env ^. Env.eTypeContext . to (ftv . Map.elems)
