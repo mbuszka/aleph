@@ -91,10 +91,15 @@ let f = fn x ->
 
 let c = fn u -> map f test
 
-{-
+run 
+  let l =
+    handle RD in c () with
+      ask u, r -> r 5;
+      return x -> x;
+  in map printInt l
 
+{-
 run
   l <- h c 2,
   map printInt l
-
 -}

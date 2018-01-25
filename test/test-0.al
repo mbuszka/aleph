@@ -31,13 +31,24 @@ let runState = fn s -> fn c ->
     ask u, r -> r s;
     return y -> y;
 
-run runState 7 (fn u ->
+run print (runState 6 (fn u ->
   a <- ask (),
   u <- print a,
   u <- tell (add 1 a),
   b <- ask (),
   u <- print b,
-  b)
+  (add b 1)))
 
+run 
+  let c = fn u ->
+    a <- ask (),
+    u <- print a,
+    b <- lift RD in (ask ()),
+    u <- print b,
+    u <- tell (add a 2),
+    print (ask ())
+  in handle RD in runState 9 c with
+    ask u, r -> r 10;
+    return x -> x;
       
 

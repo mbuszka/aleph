@@ -50,4 +50,4 @@ main = mapM_
   (\i ->
     let s = "/home/mbuszka/university/aleph/test/test-" ++ show i ++ ".al"
     in reportError (testFile s) >> putStrLn "")
-  [ 0 .. 2 ]
+  [ 0 .. 3 ]
