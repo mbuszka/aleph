@@ -55,7 +55,9 @@ unifyR s (r1@(Row l1 v1), r2@(Row l2 v2)) = let
       
       (Just a, Just b) -> do
         fr <- fresh
-        when (a == b && l1 /= l2) $ throw $ UnificationError $ "recursive types:" <+> pretty r1 <+> "and" <+> pretty r2
+        when (a == b && (List.sort l1) /= (List.sort l2)) $ 
+          throw $ UnificationError $ 
+            "recursive types:" <+> pretty r1 <+> "and" <+> pretty r2
         s' <- Subst.extend a (Right $ Row extraInL2 (Just fr)) s >>=
                 Subst.extend b (Right $ Row extraInL1 (Just fr))
         -- liftIO $ putDocW 80 $ "resulting subst:" P.<+> pretty s' P.<> P.line

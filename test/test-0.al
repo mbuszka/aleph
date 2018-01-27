@@ -21,7 +21,7 @@ let runState = fn s -> fn c ->
       c ()
     with
       tell x, r -> 
-          (handle RD in 
+          lift RD in (handle RD in 
             r ()
           with
             ask u, r -> r x;
