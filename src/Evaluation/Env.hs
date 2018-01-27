@@ -3,7 +3,7 @@ module Evaluation.Env where
 import Data.Map as Map
 
 import Evaluation.Types
-import Syntax.Grammar
+import Syntax
 import Print
 
 newtype Env = Env { unEnv :: Map Ident ExpVal }

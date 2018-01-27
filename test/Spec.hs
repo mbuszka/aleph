@@ -19,35 +19,37 @@ import Control.Monad.Except
 
 import Data.Bifunctor
 
-import Inference.Infer
+import Inference
 import Error
-import Syntax.Grammar
-import Syntax.Parse
+import Syntax
 import Print
-import Evaluation.Eval
-import Inference.Env(_eOperations)
+import Evaluation
 
 
-testFile :: (MonadError Error m, MonadIO m) => FilePath -> m ()
+testFile :: (MonadIO m) => FilePath -> m ()
 testFile f = do
   t <- liftIO $ TIO.readFile f
-  p <- parse program t
-  e <- evalCheck $ processProgram p
-  liftIO $ putDocW 80 $ pretty e <> line
-  ((), res) <- runEval $ evalProgram p
-  liftIO $ putDocW 80 $ pretty res <> line
-  return ()
+  err <- runExceptT $ do
+    p <- parse t
+    e <- check p
+    return (p, e)
+  liftIO $ putDocW 80 $ "Testing file" <+> pretty f <> line <> line
+  case err of
+    Left e -> reportError e
+    Right (p, e) -> do
+      liftIO $ putDocW 80 $ pretty e
+      (e, res) <- eval p
+      case e of
+        Just e  -> reportError e
+        Nothing -> liftIO $ putDocW 80 $ "Program finished successfully" <> line
+      liftIO $ putDocW 80 $ "Results:" <+> indent 2 (align $ vsep (map pretty res)) <> line <> line
 
-reportError :: (MonadIO m) => ExceptT Error m a -> m ()
-reportError x = do
-  e <- runExceptT x
-  case e of
-    Left err -> liftIO $ putDocW 80 $ pretty err
-    Right x  -> return ()
+reportError :: (MonadIO m) => Error  -> m ()
+reportError e = liftIO $ putDocW 80 $ pretty e <> line
 
 main :: IO ()
 main = mapM_ 
   (\i ->
     let s = "/home/mbuszka/university/aleph/test/test-" ++ show i ++ ".al"
-    in reportError (testFile s) >> putStrLn "")
+    in testFile s)
   [ 0 .. 3 ]

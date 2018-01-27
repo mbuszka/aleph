@@ -1,14 +1,14 @@
 module Syntax.Grammar 
-  ( Top(..)
-  , Term(..) 
-  , Handler(..)
-  , OpDef(..)
-  , Val(..)
-  , Typ(..)
-  , Row(..)
-  , TyVar(..)
-  , TyLit(..)
+  ( Handler(..)
   , Ident(..)
+  , OpDef(..)
+  , Row(..)
+  , Term(..)
+  , Top(..)
+  , Typ(..)
+  , TyLit(..)
+  , TyVar(..)
+  , Val(..)
   ) where
 
 import Data.Text

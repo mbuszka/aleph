@@ -6,6 +6,7 @@ module Print
   ( Pretty(..)
   , Doc
   , align
+  , indent
   , putDocW
   , (<+>)
   , line

@@ -25,7 +25,7 @@ import           Data.Text(Text)
 
 import Error
 import Print
-import Syntax.Grammar(Ident, TyLit)
+import Syntax
 
 type MonadEval m =
   ( MonadWriter [ExpVal] m

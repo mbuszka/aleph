@@ -10,7 +10,7 @@ module Inference.Subst
   , FreeVars(..)
   , compose
   , emptySubst
-  , extend
+  , Inference.Subst.extend
   ) where
 
 import Control.Lens
@@ -21,11 +21,11 @@ import           Data.Map (Map)
 import qualified Data.Set as Set
 import           Data.Set (Set)
 
+import Inference.Env as Env
+
 import Error
-import qualified Inference.Env as Env
-import           Inference.Env (Env, Scheme(..))
-import Syntax.Grammar
 import Print
+import Syntax
 
 newtype Subst = Subst { unwrap :: Map TyVar (Either Typ Row) }
   deriving Show

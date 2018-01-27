@@ -16,12 +16,12 @@ import qualified Data.Text as Text
 
 import Inference.Env   as Env
 import Inference.Subst as Subst
-import Syntax.Grammar
 
 import Error
 import Print
+import Syntax
 
-type Check m = 
+type MonadCheck m = 
   ( MonadError Error m
   , MonadReader Env m
   , MonadState State m
@@ -59,21 +59,21 @@ instance Substitute Constraint where
 
 makeLenses ''State
 
-canonicalize :: Check m => Scheme -> m Scheme
+canonicalize :: MonadCheck m => Scheme -> m Scheme
 canonicalize (Scheme vs t) = 
   Scheme (take (length vs) idents) <$> apply (Subst $ Map.fromList $ zip vs rows) t
   where idents = map (TV . Text.pack . (:[])) ['a' .. 'z']
         rows   = map (Right . Row [] . Just) idents
 
 
-instantiate :: Check m => Scheme -> m Typ
+instantiate :: MonadCheck m => Scheme -> m Typ
 instantiate (Scheme vs ty) = do
   newVs <- mapM (\v -> do
     var <- freshRow
     return (v, Right var)) vs
   apply (Subst $ Map.fromList newVs) ty
 
-lookupEnv :: Check m => Ident -> m Typ
+lookupEnv :: MonadCheck m => Ident -> m Typ
 lookupEnv v = Env.lookup v >>= instantiate
 
 fresh :: (MonadState State m) => m TyVar
@@ -88,8 +88,8 @@ freshTyp = TyVar <$> fresh
 freshRow :: (MonadState State m) => m Row
 freshRow = Row [] . Just <$> fresh
 
-constrTyp :: Check m => Typ -> Typ -> m ()
+constrTyp :: MonadCheck m => Typ -> Typ -> m ()
 constrTyp a b = tell [TyConstr a b]
 
-constrRow :: Check m => Row -> Row -> m ()
+constrRow :: MonadCheck m => Row -> Row -> m ()
 constrRow a b = tell [RoConstr a b]

@@ -15,7 +15,7 @@ import qualified Data.Map  as Map
 import           Data.Map (Map)
 
 import Error
-import Syntax.Grammar
+import Syntax
 import Print
 
 data Scheme = Scheme [TyVar] Typ
@@ -33,9 +33,9 @@ data Env = Env
 instance Pretty Env where
   pretty (Env tc ops eff) = 
        "Environment:" <> line
-    <> align (vsep (map (\(k, s) -> pretty k <+> ":" <+> pretty s) $ Map.assocs tc)) <> line
+    <> indent 2 (align (vsep (map (\(k, s) -> pretty k <+> ":" <+> pretty s) $ Map.assocs tc))) <> line
     <> "Effects:" <> line
-    <> align (vsep (map (\(k, i) -> pretty k <+> "=" <+> pretty i) $ Map.assocs eff)) <> line
+    <> indent 2 (align (vsep (map (\(k, i) -> pretty k <+> "=" <+> pretty i) $ Map.assocs eff))) <> line
 
 makeLenses ''Env
 

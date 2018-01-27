@@ -26,11 +26,11 @@ import Inference.Env   as Env
 import Inference.Types
 import Inference.Solve
 import Inference.Subst as Subst
-import Syntax.Grammar
 
 import Builtins
 import Error
 import Print
+import Syntax
 
 initState = State 0 emptySubst
 
@@ -42,7 +42,7 @@ evalCheck :: (MonadError Error m, MonadIO m)
           => (RWST Env Constraints State m) a -> m a
 evalCheck c = fst <$> evalRWST c typeEnv initState
 
-processTop :: (Check m) => Top -> m Env
+processTop :: (MonadCheck m) => Top -> m Env
 processTop (Def id t) = do
   (scheme, sub) <- processDef t
   env  <- ask
@@ -51,13 +51,13 @@ processTop (Def id t) = do
 processTop (Run t) = process t >> ask
 processTop (EffDef lbl ops) = processEff lbl ops
 
-processProgram :: (Check m) => [Top] -> m Env
+processProgram :: (MonadCheck m) => [Top] -> m Env
 processProgram [] = ask
 processProgram (t:ts) = do
   e <- processTop t
   local (\_ -> e) $ processProgram ts
 
-processDef :: (Check m) => Term -> m (Scheme, Subst)
+processDef :: (MonadCheck m) => Term -> m (Scheme, Subst)
 processDef t = do
   ((typ, env), cs) <- listen $ infer t
   (typ, cs) <- listen $ do
@@ -71,7 +71,7 @@ processDef t = do
   t <- apply sub typ
   (,) <$> (canonicalize $ generalize Env.empty t ) <*> pure sub
 
-processEff :: (Check m) => TyLit -> [OpDef] -> m Env
+processEff :: (MonadCheck m) => TyLit -> [OpDef] -> m Env
 processEff lbl ops = do
   types <- Map.fromList <$> mapM 
     (\(OpDef i a b) -> do
@@ -82,7 +82,7 @@ processEff lbl ops = do
   let effects = Map.singleton lbl $ map (\(OpDef i _ _) -> i) ops
   combine (Env types operations effects) <$> ask
 
-process :: (Check m) => Term -> m (Typ, Row)
+process :: (MonadCheck m) => Term -> m (Typ, Row)
 process t = do
   ((typ, env), cs) <- listen $ infer t
   -- liftIO $ putDocW 80 $ pretty cs <> line
@@ -93,7 +93,7 @@ process t = do
   e <- apply sub env
   return (t, e)
 
-infer :: Check m => Term -> m (Typ, Row)
+infer :: MonadCheck m => Term -> m (Typ, Row)
 infer (Var v)       = (,) <$> lookupEnv v <*> freshRow
 infer (Lit VInt{})  = (,) (TyLit $ TL "Int")  <$> freshRow
 infer (Lit VUnit{}) = (,) (TyLit $ TL "Unit") <$> freshRow
@@ -161,7 +161,7 @@ infer (Lift lbl t) = do
   constrRow (Row [] $ Just fr) eff
   return (ty, r)
 
-inferHandler :: Check m => TyLit -> (Typ, Typ, Row) -> Handler -> m (Maybe Ident, Typ)
+inferHandler :: MonadCheck m => TyLit -> (Typ, Typ, Row) -> Handler -> m (Maybe Ident, Typ)
 inferHandler hLbl (resT, contT, resE) (Op id arg cont exp) = do
   (lbl, argT, retT) <- lookupOp id
   when (hLbl /= lbl) $ throw $ 
@@ -178,7 +178,7 @@ inferHandler hLbl (resT, contT, resE) (Ret val exp) = do
   constrTyp ty contT
   return (Nothing, ty)
 
-inferHandlers :: Check m => TyLit -> (Typ, Row) -> [Handler] -> m (Typ, Row)
+inferHandlers :: MonadCheck m => TyLit -> (Typ, Row) -> [Handler] -> m (Typ, Row)
 inferHandlers lbl (resT, resE) hs = do
   contT <- freshTyp
   types <- mapM (inferHandler lbl (resT, contT, resE)) hs

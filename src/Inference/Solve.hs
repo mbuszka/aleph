@@ -12,10 +12,10 @@ import qualified Data.List as List
 
 import Inference.Types
 import Inference.Subst as Subst
-import Syntax.Grammar
 
 import Error
 import Print
+import Syntax
 
 unifyT :: Solve m => Subst -> (Typ, Typ) -> m (Subst, Constraints)
 unifyT s (a, b) | a == b = return (s, [])
@@ -32,8 +32,6 @@ unifyT s (TyArr a1 r1 b1,  TyArr a2 r2 b2) =
     return (s, cs)
 unifyT s (t1, t2) = throw $ UnificationError $ pretty t1 <+> "and" <+> pretty t2
 
-
--- TODO Add occurs check
 
 unifyR :: Solve m => Subst -> (Row, Row) -> m (Subst, Constraints)
 unifyR s (r1@(Row l1 v1), r2@(Row l2 v2)) = let

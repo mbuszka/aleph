@@ -7,11 +7,7 @@
 
 module Evaluation.Eval where
 
-import Control.Monad
-import Control.Monad.State
 import Control.Monad.Reader
-import Control.Monad.Writer hiding ((<>))
-import Control.Monad.Except
 
 import qualified Data.Map as M
 import           Data.Map(Map)
@@ -20,17 +16,11 @@ import           Data.Text(Text)
 
 import Builtins
 import Error
-import Syntax.Grammar as Grammar hiding (Val)
+import Syntax hiding (Val)
 import Evaluation.Types
 import Evaluation.Env as Env
 import Print
 
-runEval :: (MonadError Error m, MonadIO m) 
-  => WriterT [ExpVal] m a -> m (a, [ExpVal])
-runEval = runWriterT
-
-evalProgram :: (MonadEval m) => [Top] -> m ()
-evalProgram = evalP evalEnv evalCtx
 
 evalP :: MonadEval m => Env -> Ctx -> [Top] -> m ()
 evalP e c (Def x t : ts) = do
@@ -53,9 +43,9 @@ eval env t ctx =
   case t of
     Var v -> Env.lookup ctx v env >>= apply ctx
     Lit v -> case v of
-      Grammar.VInt i  -> apply ctx $ IntVal i
-      Grammar.VUnit   -> apply ctx UnitVal
-      Grammar.VBool b -> apply ctx $ BoolVal b
+      VInt i  -> apply ctx $ IntVal i
+      VUnit   -> apply ctx UnitVal
+      VBool b -> apply ctx $ BoolVal b
     Abs id exp -> apply ctx $ FunVal (\v -> eval (Env.extend id v env) exp)
     App fun exp ->
       eval env fun $ pushFrame (RegularFrame $ \case 
