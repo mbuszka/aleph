@@ -34,42 +34,28 @@ import Syntax
 
 initState = State 0 emptySubst
 
-runCheck :: (MonadError Error m, MonadIO m)
-         => (RWST Env Constraints State m) a -> m (a, State, Constraints)
-runCheck c = runRWST c typeEnv initState
-
-evalCheck :: (MonadError Error m, MonadIO m)
-          => (RWST Env Constraints State m) a -> m a
-evalCheck c = fst <$> evalRWST c typeEnv initState
-
-processTop :: (MonadCheck m) => Top -> m Env
-processTop (Def id t) = do
-  (scheme, sub) <- processDef t
-  env  <- ask
-  env' <- apply sub env
-  return $ Env.extend id scheme env'
-processTop (Run t) = process t >> ask
-processTop (EffDef lbl ops) = processEff lbl ops
-
 processProgram :: (MonadCheck m) => [Top] -> m Env
 processProgram [] = ask
 processProgram (t:ts) = do
   e <- processTop t
   local (\_ -> e) $ processProgram ts
 
-processDef :: (MonadCheck m) => Term -> m (Scheme, Subst)
-processDef t = do
-  ((typ, env), cs) <- listen $ infer t
+processTop :: (MonadCheck m) => Top -> m Env
+processTop (Def id t) = do
   (typ, cs) <- listen $ do
     (typ, env) <- infer t
     constrRow env (Row [] Nothing)
     return typ
-  -- liftIO $ putDocW 80 $ pretty cs <> line
   s <- gets _sSubst
   sub <- solve s cs
-  -- liftIO $ putDocW 80 $ pretty sub <> line
-  t <- apply sub typ
-  (,) <$> (canonicalize $ generalize Env.empty t ) <*> pure sub
+  sch <- canonicalize . generalize Env.empty =<< apply sub typ
+  Env.extend id sch <$> (apply sub =<< ask)
+processTop (Run t) = do
+  (typ, cs) <- listen (fst <$> infer t)
+  s <- gets _sSubst
+  sub <- solve s cs
+  apply sub =<< ask
+processTop (EffDef lbl ops) = processEff lbl ops
 
 processEff :: (MonadCheck m) => TyLit -> [OpDef] -> m Env
 processEff lbl ops = do
@@ -81,17 +67,6 @@ processEff lbl ops = do
   let operations = Map.fromList $ map (\(OpDef i a b) -> (i, (lbl, a, b))) ops
   let effects = Map.singleton lbl $ map (\(OpDef i _ _) -> i) ops
   combine (Env types operations effects) <$> ask
-
-process :: (MonadCheck m) => Term -> m (Typ, Row)
-process t = do
-  ((typ, env), cs) <- listen $ infer t
-  -- liftIO $ putDocW 80 $ pretty cs <> line
-  s   <- gets _sSubst
-  sub <- solve s cs
-  -- liftIO $ putDocW 80 $ pretty sub P.<> P.line
-  t <- apply sub typ
-  e <- apply sub env
-  return (t, e)
 
 infer :: MonadCheck m => Term -> m (Typ, Row)
 infer (Var v)       = (,) <$> lookupEnv v <*> freshRow

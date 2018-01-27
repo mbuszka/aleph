@@ -46,7 +46,8 @@ run
     b <- lift RD in (ask ()),
     u <- print b,
     u <- tell (add a 2),
-    print (ask ())
+    u <- print (ask ()),
+    1
   in handle RD in runState 9 c with
     ask u, r -> r 10;
     return x -> x;
