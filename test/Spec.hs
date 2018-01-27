@@ -3,8 +3,6 @@
   , OverloadedStrings
 #-}
 
-import Control.Lens
-
 import Control.Monad
 import Control.Monad.Except
 
