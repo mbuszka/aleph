@@ -24,7 +24,7 @@ effects = Map.fromList
 
 primTypes :: Map Ident Scheme
 primTypes = Map.fromList
-  [ (ID "print", Scheme [TV "a"] $ TyArr int (row "a") unit)
+  [ (ID "print", Scheme [TV "a"] $ TyArr int (Row [TL "IO"] (Just $ TV "a")) unit)
   , (ID "add", iii)
   , (ID "sub", iii)
   , (ID "mul", iii)
