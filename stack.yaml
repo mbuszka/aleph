@@ -4,5 +4,5 @@ packages:
 - .
 
 nix:
-  enable: true
+  enable: false
   packages: [ ncurses ]
